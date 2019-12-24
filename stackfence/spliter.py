@@ -10,6 +10,7 @@ else:
     from Queue import Queue
 
 from collections import deque as Deque
+from typing import Optional
 
 import logging
 
@@ -180,6 +181,72 @@ class RefCache(object):
         return self.__map_node_refs[node]
 
 
+class TopFirstQueue(object):
+    def __init__(self, ref):
+        # type: (RefCache) -> None
+        self.ref = ref
+        self.__list = []
+
+    def append(self, node):
+        # type: (ts.Node) -> None
+        self.__list.append(node)
+
+    def empty(self):
+        # type: () -> bool
+        return len(self.__list) == 0
+
+    def __len__(self):
+        # type: () -> int
+        return len(self.__list)
+
+    def pop(self):
+        # type: () -> Optional[ts.Node]
+        if self.empty():
+            return None
+        L = self.__list
+        i = 0
+        n = L[i]
+        for j in range(1, len(L)):
+            if self.ref.ref(L[j], n):
+                i = j
+                n = L[i]
+        del self.__list[i]
+        return n
+
+
+class BottomFirstQueue(object):
+    def __init__(self, ref):
+        # type: (RefCache) -> None
+        self.ref = ref
+        self.__list = []
+
+    def append(self, node):
+        # type: (ts.Node) -> None
+        self.__list.append(node)
+
+    def empty(self):
+        # type: () -> bool
+        return len(self.__list) == 0
+
+    def __len__(self):
+        # type: () -> int
+        return len(self.__list)
+
+    def pop(self):
+        # type: () -> Optional[ts.Node]
+        if self.empty():
+            return None
+        L = self.__list
+        i = 0
+        n = L[i]
+        for j in range(1, len(L)):
+            if self.ref.ref(n, L[j]):
+                i = j
+                n = L[i]
+        del self.__list[i]
+        return n
+
+
 class GraphSpliter(object):
     def __init__(self, single_input=False, single_output=False,
                  logging_level=logging.INFO,
@@ -316,21 +383,23 @@ class GraphSpliter(object):
         if self.single_output:
             graph_set = set()   # contains all nodes in graph
             input_set = set()     # not support nodes, as graph inputs
+            output_set = {start, }
 
             walked = set()
             re_walk_count = 0   # means now many re_walk node in walking set
 
-            walking = Deque()
+            walking = TopFirstQueue(ref)
             walking.append(node)
             while len(walking) > 0 and re_walk_count < len(walking):
-                n = walking.popleft()
+                n = walking.pop()
                 if n in walked:
                     continue
                 walked.add(n)
 
                 if n not in dead and \
                         self.is_route_or_support(n) and \
-                        not any([ref.ref(t, n) for t in input_set]):
+                        not any([ref.ref(t, n) for t in input_set]) and \
+                        not any([ref.ref(n, t) for t in output_set]):
                     # check if n can be output node
                     if n != start:
                         n_outputs = set(n.outputs)
@@ -354,7 +423,7 @@ class GraphSpliter(object):
                     input_set.add(n)
 
             while len(walking) > 0:
-                n = walking.popleft()
+                n = walking.pop()
                 if n in walked:
                     continue
                 walked.add(n)
@@ -371,8 +440,8 @@ class GraphSpliter(object):
 
             walked = set()
 
-            next_input_deque = Deque()
-            next_output_deque = Deque()
+            next_input_deque = TopFirstQueue(ref)
+            next_output_deque = BottomFirstQueue(ref)
             next_input_empty = False
             next_output_empty = False
 
@@ -385,14 +454,15 @@ class GraphSpliter(object):
                     break
 
                 while len(next_input_deque) > 0:
-                    n = next_input_deque.popleft()
+                    n = next_input_deque.pop()
                     assert isinstance(n, ts.Node)
                     if n in walked:
                         continue
                     walked.add(n)
                     if n not in dead and \
                             self.is_route_or_support(n) and \
-                            not any([ref.ref(t, n) for t in input_set]):
+                            not any([ref.ref(t, n) for t in input_set]) and \
+                            not any([ref.ref(n, t) for t in output_set]):
                         # check if n can be output node
                         n_outputs = set(n.outputs)
                         n_not_in_graph_outputs = n_outputs - graph_set
@@ -426,7 +496,8 @@ class GraphSpliter(object):
                     walked.add(n)
                     if n not in dead and \
                             self.is_route_or_support(n) and \
-                            not any([ref.ref(t, n) for t in input_set]):
+                            not any([ref.ref(t, n) for t in input_set]) and \
+                            not any([ref.ref(n, t) for t in output_set]):
                         n_inputs = set(n.inputs)
                         n_unsatisfied_inputs = n_inputs - input_set - graph_set
                         if len(n_unsatisfied_inputs) == 0:
@@ -438,7 +509,7 @@ class GraphSpliter(object):
                                     next_output_deque.append(o)
                             for i in n.inputs:
                                 if i not in dead and i not in walked:
-                                    next_input_deque.appendleft(i)
+                                    next_input_deque.append(i)
                         else:
                             not_sure_output_list.append(n)
                     else:
@@ -647,6 +718,7 @@ class GraphSpliter(object):
         # 2. build each graph to submodule,
         # 2.1 build node in map, use clone graph method
         # 2.1.1. clone sub graph
+        sub_graph_ending_plot = set()
         main_sub_graphs = []
         for i, sub_graph in enumerate(supported_graphs):
             sub_cache = {}
@@ -658,6 +730,25 @@ class GraphSpliter(object):
             g = SubGraph(sub_outputs, sub_inputs)
             g.sort_inputs(sub_inputs)
             main_sub_graphs.append(g)
+            # Base information the sub graph ending
+            for sub_graph_input in sub_graph.inputs:
+                if sub_graph_input in sub_graph_ending_plot:
+                    continue
+                sub_graph_ending_plot.add(sub_graph_input)
+                if sub_graph_input.op == ts.Node.Parameter:
+                    continue
+                print("[====]: Sub graph end: {}:{}".format(sub_graph_input.op, sub_graph_input.name))
+
+        for sub_graph in supported_graphs:
+            for sub_graph_output in sub_graph.outputs:
+                for soo in sub_graph_output.outputs:
+                    if soo in sub_graph_ending_plot:
+                        continue
+                    sub_graph_ending_plot.add(soo)
+                    print("[====]: Sub graph start: {}:{}".format(soo.op, soo.name))
+
+        if len(sub_graph_ending_plot) == 0:
+            print("[====]: Sub graph = main graph.")
 
         # 2.1.2 clone main graph
         main_tips = {}

@@ -180,13 +180,13 @@ def _build_layers_setup_bottom_top(outputs, inputs):
     for n in nodes:
         do_map_node_top_name(n)
 
-    for n in nodes[::-1]:
+    for n in layers[::-1]:
         if isinstance(n, CaffeNode):
             if str(n.proto.type) in {"ELU", "Exp", "Log", "Power", "PReLU", "ReLU", "Sigmoid", "TanH", "RReLU"}:
                 if n.bottoms[0] not in inputs:
                     map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
 
-    for n in nodes:
+    for n in layers:
         bottom_names = []
         top_names = []
 
@@ -300,9 +300,215 @@ def convert_conv2d(node, cache):
     param = cn.proto.convolution_param
     blobs = cn.proto.blobs
 
-    update_blob(blobs.add(), (10, 20, 30, 40))
+    format = str(node.get("format"))
+    assert format == "NCHW"
+
+    W = node.inputs[1].get("value")
+    update_blob(blobs.add(), W)
+
+    param.num_output = W.shape[0]
+    param.group = 1
+
+    padding = numpy.asarray(node.get("padding")).reshape([-1, 2])[-2:]
+    stride = numpy.asarray(node.get("stride")).reshape([-1])[-2:]
+    dilation = numpy.asarray(node.get("dilation")).reshape([-1])[-2:]
+    kernel_size = W.shape[-2:]
+
+    if kernel_size[0] == kernel_size[1]:
+        param.kernel_size.extend(kernel_size[-1:])
+    else:
+        param.kernel_size.extend(kernel_size[-2:])
+
+    if dilation[0] == dilation[1]:
+        param.dilation.extend(dilation[-1:])
+    else:
+        param.dilation.extend(dilation[-2:])
+
+    if stride[0] == stride[1]:
+        param.stride.extend(stride[-1:])
+    else:
+        param.stride.extend(stride[-2:])
+
+    assert padding[0, 0] == padding[0, 1]
+    assert padding[1, 0] == padding[1, 1]
+
+    if padding[0, 0] == padding[1, 0]:
+        param.pad.extend([padding[0, 0]])
+    else:
+        param.pad.extend([padding[0, 0], padding[1, 0]])
+
+    if len(node.inputs) > 2:
+        B = node.inputs[2].get("value")
+        update_blob(blobs.add(), B)
+
+        param.bias_term = True
 
     return cn
 
 
 register_node_converter("conv2d", convert_conv2d)
+
+
+def convert_add_bias(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Bias", node.name, [x])
+    param = cn.proto.bias_param
+    blobs = cn.proto.blobs
+
+    format = None
+    dim = None
+    if node.has("dim"):
+        dim = int(node.get("dim"))
+    if node.has("format"):
+        format = str(node.get("format"))
+
+    if dim is None:
+        if format is None:
+            raise ValueError("add_bias must set format and dim")
+        if format == "HCHW":
+            dim = 1
+        elif format == "NHWC":
+            dim = 3
+        else:
+            raise ValueError("add_bias not support format {}".format(format))
+
+    param.axis = dim
+    param.num_axes = 1
+    B = node.inputs[1].get("value")
+
+    update_blob(blobs.add(), B)
+
+    return cn
+
+
+register_node_converter("add_bias", convert_add_bias)
+
+
+def convert_pooling2d(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Pooling", node.name, [x])
+    param = cn.proto.pooling_param
+    blobs = cn.proto.blobs
+
+    format = str(node.get("format"))
+    assert format == "NCHW"
+
+    padding = numpy.asarray(node.get("padding")).reshape([-1, 2])[-2:]
+    stride = numpy.asarray(node.get("stride")).reshape([-1])[-2:]
+    ksize = numpy.asarray(node.get("ksize")).reshape([-1])[-2:]
+    type = int(node.get("type"))
+
+    if ksize[0] == ksize[1]:
+        param.kernel_size = ksize[0]
+    else:
+        param.kernel_h = ksize[0]
+        param.kernel_w = ksize[1]
+
+    if stride[0] == stride[1]:
+        param.stride = stride[0]
+    else:
+        param.stride_h = stride[0]
+        param.stride_w = stride[1]
+
+    assert padding[0, 0] == padding[0, 1]
+    assert padding[1, 0] == padding[1, 1]
+
+    if padding[0, 0] == padding[1, 0]:
+        param.pad = padding[0, 0]
+    else:
+        param.pad_h = padding[0, 0]
+        param.pad_w = padding[1, 0]
+
+    if type == 0:
+        param.pool = 0
+    elif type == 1:
+        param.pool = 1
+    else:
+        raise ValueError("pooling2d not supported pooling type: {}".format(type))
+
+    return cn
+
+
+register_node_converter("pooling2d", convert_pooling2d)
+
+
+def convert_batch_scale(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Scale", node.name, [x])
+    param = cn.proto.scale_param
+    blobs = cn.proto.blobs
+
+    scale = node.inputs[1].get("value")
+    bias = node.inputs[2].get("value")
+    dim = int(node.get("dim"))
+
+    param.axis = dim
+    param.num_axes = 1
+    param.bias_term = True
+
+    update_blob(blobs.add(), scale)
+    update_blob(blobs.add(), bias)
+
+    return cn
+
+
+register_node_converter("batch_scale", convert_batch_scale)
+
+
+def convert_batch_norm(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("BatchNorm", node.name, [x])
+    param = cn.proto.batch_norm_param
+    blobs = cn.proto.blobs
+
+    mean = node.inputs[1].get("value")
+    var = node.inputs[2].get("value")
+    dim = int(node.get("dim"))
+    epsilon = 1e-5
+    if node.has("epsilon"):
+        epsilon = float(node.get("epsilon"))
+
+    assert dim == 1
+
+    # param.eps = epsilon
+    param.use_global_stats = True
+
+    update_blob(blobs.add(), mean)
+    update_blob(blobs.add(), var)
+
+    return cn
+
+
+register_node_converter("batch_norm", convert_batch_norm)
+
+
+def convert_add(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    y = convert2caffenode(node.inputs[1], cache)
+    cn = CaffeNode("Eltwise", node.name, [x, y])
+    param = cn.proto.eltwise_param
+    blobs = cn.proto.blobs
+
+    # 0-PROD, 1-SUM, 2-MAX
+    param.operation = 1
+
+    return cn
+
+
+register_node_converter("add", convert_add)
+
+
+def convert_relu(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("ReLU", node.name, [x, ])
+
+    return cn
+
+
+register_node_converter("relu", convert_relu)
