@@ -479,6 +479,7 @@ def convert_batch_norm(node, cache):
 
     update_blob(blobs.add(), mean)
     update_blob(blobs.add(), var)
+    update_blob(blobs.add(), [1])
 
     return cn
 

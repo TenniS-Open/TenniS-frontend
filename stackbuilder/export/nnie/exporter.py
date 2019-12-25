@@ -274,20 +274,21 @@ class NNIEExporter(object):
             graph = main_graph.sub_graph(i)
 
             # ref wk filename
-            wk_filename = os.path.join("inst", "{}.{}.wk".format(output_name, i))
-            print("[INFO]: Waiting... {}".format(wk_filename))
+            wk_filename = os.path.join("inst", "{}.{}".format(output_name, i))
+            print("[INFO]: Waiting... {}.wk".format(wk_filename))
 
             # write config
             cfg = nnie_config.Config()
             cfg.prototxt_file = os.path.join("model", "{}.{}.wk.prototxt".format(output_name, i))
             cfg.caffemodel_file = os.path.join("model", "{}.{}.wk.caffemodel".format(output_name, i))
-            cfg.instructions_name = wk_filename
+            cfg.instruction_name = wk_filename
             cfg.batch_num = 0
             cfg.log_level = 2
             for graph_input in graph.inputs:
                 iname = graph_input.name
                 image_list = os.path.relpath(map_name_image_list[iname], output_root)
                 cfg.image_list.append(image_list)
+                cfg.image_type.append(0)
 
             full_cfg_path = os.path.join(output_root, "{}.{}.wk.cfg".format(output_name, i))
             cfg.write(full_cfg_path)
@@ -309,6 +310,11 @@ class NNIEExporter(object):
 
         with open(filename, "wb") as f:
             ts.Module.Save(f, main_module)
+
+        # final. make inst dir for output file
+        inst_root = os.path.join(output_root, "inst")
+        if not os.path.isdir(inst_root):
+            os.makedirs(inst_root)
 
         # PS. than writen nnie wk file, has some pattern
         return summery_configs
