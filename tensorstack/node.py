@@ -127,12 +127,20 @@ class Node(object):
 
     @staticmethod
     def Link(node, inputs):
+        # type: (Node, Union[Node, List[Node]]) -> None
         """
         :param node: Node
         :param inputs: single Node of list of Node
         :return: None
         """
-        if isinstance(inputs, list) or isinstance(inputs, tuple):
+        assert isinstance(inputs, (Node, tuple, list)), "Input nodes must be node or list of nodes"
+
+        # in case of link the node twice
+        for i in node.inputs:
+            i.__outputs.remove(node)
+        node.__inputs = []
+
+        if isinstance(inputs, (list, tuple)):
             node.__inputs = list(inputs)
             for input in inputs:
                 assert isinstance(input, Node)
@@ -143,6 +151,49 @@ class Node(object):
             input.__outputs.append(node)
         else:
             raise Exception("Input nodes must be node or list of nodes")
+
+    @staticmethod
+    def _list_replace(a, old, new):
+        # type: (List, object, object) -> List
+        for i in range(len(a)):
+            if a[i] == old:
+                a[i] = new
+        return a
+
+    @staticmethod
+    def Replace(old, new):
+        # type: (Node, Node) -> None
+        assert isinstance(old, Node)
+        assert isinstance(new, Node)
+        if old == new:
+            return
+
+        if old in new.inputs:
+            for o in old.outputs:
+                if o == new:
+                    continue
+                Node._list_replace(o.__inputs, old, new)
+            for o in old.outputs:
+                if o == new:
+                    continue
+                if o not in new.outputs:
+                    new.__outputs.append(o)
+            old.__outputs = [new, ]
+            return
+
+        if new in old.inputs:
+            pass
+
+        # common case: three things to be done,
+        # 1. change each old.outputs' inputs.
+        # 2. merge old.outputs to new.outputs
+        # 3. clear old.outputs
+        for o in old.outputs:
+            Node._list_replace(o.__inputs, old, new)
+        for o in old.outputs:
+            if o not in new.outputs:
+                new.__outputs.append(o)
+        old.__outputs = []
 
     def __str__(self):
         return str(self.__params)
