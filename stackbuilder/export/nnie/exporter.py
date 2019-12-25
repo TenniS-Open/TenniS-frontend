@@ -12,6 +12,7 @@ import os
 from stackfence.spliter import MainGraph
 from .. import fridge
 from . import nnie_spliter
+from . import nnie_fence
 
 from . import nnie_caffe
 from .. import dumper
@@ -62,6 +63,9 @@ def split_caffe(input_tsm, output_tsm, subdir=None, input_shape=None, export_mai
     print("[INFO]: Freezing graph...")
     outputs, inputs = fridge.freeze(outputs, inputs, input_shape)
     print("[INFO]: Split graph...")
+    fence_cache = {}
+    outputs = nnie_fence.get_fence().convert(outputs, cache=fence_cache)
+    inputs = [fence_cache[i] for i in inputs]
     main_graph = nnie_spliter.get_spliter().split(outputs, inputs)
     print("[INFO]: Convert graph...")
     nnie_count = main_graph.sub_count()

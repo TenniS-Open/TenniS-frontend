@@ -595,3 +595,19 @@ def convert_inner_prod(node, cache):
 
 
 register_node_converter("inner_prod", convert_inner_prod)
+
+
+def convert_concat(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = [convert2caffenode(i, cache) for i in node.inputs]
+    cn = CaffeNode("Concat", node.name, x)
+    param = cn.proto.concat_param
+    blobs = cn.proto.blobs
+
+    dim = int(node.get("dim"))
+    param.axis = dim
+
+    return cn
+
+
+register_node_converter("concat", convert_concat)
