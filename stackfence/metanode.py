@@ -3,6 +3,10 @@ from typing import CallableMeta, Union, List, Tuple, Set, SupportsInt, Dict
 import numpy
 import tensorstack as ts
 
+import sys
+if sys.version > "3":
+    basestring = str
+
 Tensor = Union[int, float, numpy.ndarray, ts.tensor.StringTensor, ts.tensor.PackedTensor]
 
 

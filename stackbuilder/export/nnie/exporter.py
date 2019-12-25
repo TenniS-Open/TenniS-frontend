@@ -17,6 +17,10 @@ from . import nnie_caffe
 from .. import dumper
 from . import nnie_config
 
+import sys
+if sys.version > "3":
+    basestring = str
+
 """
 For add new converter, See .nnie_spliter.get_spliter for graph spliter; .nnie_caffe for graph converter
 """
