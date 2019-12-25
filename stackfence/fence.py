@@ -127,6 +127,16 @@ class Fence(object):
             cache[node] = cvt_node
         return cvt_node
 
+    def _convert_updated(self, node, graph, cache=None):
+        # type: (ts.Node, Set[ts.Node], Dict[ts.Node, ts.Node]) -> Union[ts.Node, None]
+        # Replace Node in graph
+        cvt_node = self._convert_cached(node, graph, cache=cache)
+        if cvt_node == node:
+            return cvt_node
+        # Careful replace node with cvt_node
+        ts.Node.Replace(node, cvt_node)
+        return cvt_node
+
     def _convert(self, node, graph, cache=None):
         # type: (ts.Node, Set[ts.Node], Dict[ts.Node, ts.Node]) -> Union[ts.Node, None]
         assert isinstance(node, ts.Node)
@@ -134,7 +144,7 @@ class Fence(object):
             cache = {}
 
         # 1. try convert node firstly
-        cvt_node = self._convert_cached(node, graph, cache)
+        cvt_node = self._convert_updated(node, graph, cache)
 
         # 2. loop convert node inplace if node converted
         if cvt_node is not None and cvt_node != node:
@@ -143,43 +153,12 @@ class Fence(object):
             if cvt_cvt_node is not None and cvt_cvt_node != cvt_node:
                 return cvt_cvt_node
 
-        # 3. convert each inputs
-        if cvt_node is None:
-            cvt_node = node
+        for i in range(len(cvt_node.inputs)):
+            # convert input, no need to return
+            # no need to re-link node as that _convert_updated used
+            self._convert(cvt_node.inputs[i], graph, cache)
 
-        cvt_inputs_updated = False
-        cvt_inputs = []
-        for i in cvt_node.inputs:
-            cvt_cvt_input = self._convert(i, graph, cache)
-            if cvt_cvt_input is None or cvt_cvt_input == i:
-                cvt_inputs.append(i)
-            else:
-                cvt_inputs.append(cvt_cvt_input)
-                cvt_inputs_updated = True
-
-        # 3.1 if no input updated, directly return converted node
-        if not cvt_inputs_updated:
-            return cvt_node if cvt_node != node else None
-
-        # 4. build new node if any input updated
-        cvt_node_with_new_inputs = ts.node.Node(op=cvt_node.op,
-                                                name=cvt_node.name,
-                                                shape=cvt_node.shape)
-
-        for k in cvt_node.params.keys():
-            v = cvt_node.params[k]
-            cvt_node_with_new_inputs.set(k, v)
-
-        ts.Node.Link(cvt_node_with_new_inputs, cvt_inputs)
-
-        cvt_node = cvt_node_with_new_inputs
-        cache[node] = cvt_node  # remember cache
-
-        # 4.1 update graph, remove older node, add new node
-        graph.remove(node)
-        graph.add(cvt_node)
-
-        return cvt_node
+        return cvt_node if cvt_node != node else None
 
     def _convert_check_none(self, node, graph, cache=None):
         # type: (ts.Node, Set[ts.Node], Dict[ts.Node, ts.Node]) -> ts.Node
