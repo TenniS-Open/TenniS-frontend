@@ -57,6 +57,9 @@ class MyCalibrator(Calibrator):
         assert callable(value)
         self.__image_filter = value
 
+    def number(self):  # type: () -> int
+        return len(self.__filelist)
+
     def next(self):
         # type: () -> Optional[List[numpy.ndarray]]
         while True:
