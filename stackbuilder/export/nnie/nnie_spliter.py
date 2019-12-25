@@ -70,4 +70,7 @@ def get_spliter():
     ]))
     gs.support(if_no_broadcast_reduce("add"))
     gs.support("relu")
+    gs.route("flatten")
+    gs.support("inner_prod")
+    gs.route("_reshape")
     return gs

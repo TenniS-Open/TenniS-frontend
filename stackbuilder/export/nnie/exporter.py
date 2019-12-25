@@ -125,7 +125,7 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
             lines = []
             for data in features:
                 flatten_data = numpy.asarray(data).reshape([-1])
-                lines.append(" ".join(["{:5.3g}".format(f).strip() for f in flatten_data]))
+                lines.append(" ".join(["%.3g" % f for f in flatten_data]))
                 lines.append("\n")
                 P[0] += 1
                 process_show()

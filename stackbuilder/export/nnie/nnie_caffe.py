@@ -10,6 +10,8 @@ import numpy
 from stackfence.fence import Fence
 from stackfence.metanode import *
 
+from typing import Optional
+
 
 def fuse_conv2d_bias(node):
     # type: (ts.Node) -> ts.Node
@@ -19,12 +21,59 @@ def fuse_conv2d_bias(node):
     return conv2d
 
 
+def fuse_ip_bias(node):
+    # type: (ts.Node) -> ts.Node
+    ip = ts.graph.clone_bubble(node.inputs[0])
+    ip.name = node.name
+    ts.Node.Link(ip, (node.inputs[0].inputs[0], node.inputs[0].inputs[1], node.inputs[1]))
+    return ip
+
+
+def fuse_flatten_ip(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    flatten = node.inputs[0]
+    ip = node
+    w = node.inputs[1]
+
+    if flatten.has("dim") and int(flatten.get("dim")) != 1:
+        return None
+
+    new_ip = ts.graph.clone_bubble(ip)
+    ts.Node.Link(new_ip, (flatten.inputs[0], w))
+
+    return new_ip
+
+
+def fuse_bias_reshape(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    bias = node.inputs[0]
+    reshape = node
+
+    shape = list(reshape.get("shape"))
+    if len(shape) != 4 or shape[2] != 1 or shape[3] != 1:
+        return None
+
+    return bias
+
+
 def _get_caffe_fence():
     fence = Fence()
     fence.register(MetaGraph([
         "conv2d",
         ("add_bias", -1)
     ]), fuse_conv2d_bias)
+    fence.register(MetaGraph([
+        "inner_prod",
+        ("add_bias", -1)
+    ]), fuse_ip_bias)
+    fence.register(MetaGraph([
+        "flatten",
+        ("inner_prod", -1)
+    ]), fuse_flatten_ip)
+    fence.register(MetaGraph([
+        "add_bias",
+        ("_reshape", -1)
+    ]), fuse_bias_reshape)
     return fence
 
 
@@ -513,3 +562,36 @@ def convert_relu(node, cache):
 
 
 register_node_converter("relu", convert_relu)
+
+
+def convert_inner_prod(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("InnerProduct", node.name, [x])
+    param = cn.proto.inner_product_param
+    blobs = cn.proto.blobs
+
+    transpose = False
+    if node.has("transpose"):
+        transpose = bool(node.get("transpose"))
+
+    W = node.inputs[1].get("value")
+    update_blob(blobs.add(), W)
+
+    if transpose:
+        param.num_output = W.shape[0]
+    else:
+        param.num_output = W.shape[1]
+
+    param.transpose = transpose
+
+    if len(node.inputs) > 2:
+        B = node.inputs[2].get("value")
+        update_blob(blobs.add(), B)
+
+        param.bias_term = True
+
+    return cn
+
+
+register_node_converter("inner_prod", convert_inner_prod)
