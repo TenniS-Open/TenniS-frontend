@@ -110,6 +110,14 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
         filename = map_name_filenames[name]
         map_name_file_stream[name] = open(filename, "w")
 
+    P = [0, 0, calibrator.number()]
+
+    def process_show():
+        sys.stdout.write("\r[{}/{}/{}]".format(*P))
+        sys.stdout.flush()
+
+    process_show()
+
     def flush():
         for name in output_names:
             features = map_name_features[name]
@@ -117,8 +125,10 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
             lines = []
             for data in features:
                 flatten_data = numpy.asarray(data).reshape([-1])
-                lines.append(" ".join([str(f) if f != 0 else "0" for f in flatten_data]))
+                lines.append(" ".join(["{:5.3g}".format(f).strip() for f in flatten_data]))
                 lines.append("\n")
+                P[0] += 1
+                process_show()
             stream.writelines(lines)
             stream.flush()
             map_name_features[name] = []
@@ -131,11 +141,18 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
             break
         for i, name in enumerate(output_names):
             map_name_features[name].append(features_list[i])
+
+        P[1] += 1
+        process_show()
+
         count += 1
-        if count > N:
+        if count >= N:
             count = 0
             flush()
+
     flush()
+    process_show()
+    print("\n[INFO]: Build image list done.")
 
     for name in output_names:
         map_name_file_stream[name].close()
@@ -207,13 +224,16 @@ class NetInferer(object):
 
 
 class NNIEExporter(object):
-    def __init__(self, host_device="cpu", host_device_id=0):
-        self.__original_module = None
-        self.__input_shape = None
+    def __init__(self, nnie_version=None, host_device="cpu", host_device_id=0):
+        self.__original_module = None   # update by load
+        self.__input_shape = None       # update by load
         self.__cmd = None   # path to cmd line
         self.__cache = None # cache temp files
         self.__host_device = host_device
         self.__host_device_id = host_device_id
+        if nnie_version is not None and nnie_version not in {"11", "12"}:
+            raise ValueError("nnie version must be string 11 or 12")
+        self.__nnie_version = nnie_version
         pass
 
     def load(self, module, input_shape=None):
@@ -228,6 +248,8 @@ class NNIEExporter(object):
 
     def export_caffe(self, filename, subdir=None):
         # type: (str, str) -> None
+        if self.__original_module is None:
+            raise ValueError("call load fist be before export_caffe")
         split_caffe(self.__original_module, filename, subdir, self.__input_shape)
 
     def _split_root_name_ext(self, filename):
@@ -252,6 +274,9 @@ class NNIEExporter(object):
             `wk_buffer` `ByteArray` `Optional` load from this buffer if wk_buffer set
         ``
         """
+        if self.__original_module is None:
+            raise ValueError("call load fist be before export_nnie_cfg")
+
         output_root, output_name, output_ext = self._split_root_name_ext(filename)
         # 1. split caffe
         main_graph = split_caffe(input_tsm=self.__original_module,
@@ -323,6 +348,8 @@ class NNIEExporter(object):
         inst_root = os.path.join(output_root, "inst")
         if not os.path.isdir(inst_root):
             os.makedirs(inst_root)
+
+        print("[INFO]: Writen file: {}".format(filename))
 
         # PS. than writen nnie wk file, has some pattern
         return summery_configs

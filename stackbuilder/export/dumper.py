@@ -29,6 +29,14 @@ class Calibrator(object):
         """
         raise NotImplementedError
 
+    def number(self):
+        # type: () -> int
+        """
+        Get full data number
+        :return:
+        """
+        raise NotImplementedError
+
 
 def _count_node_name(outputs, cache=None, count=None):
     # type: (List[ts.Node], Set[ts.Node], Dict[ts.Node, int]) -> Dict[ts.Node, int]
@@ -121,6 +129,7 @@ class Dumper(object):
         assert isinstance(outputs, (list, tuple)) and \
                all([isinstance(s, basestring) for s in outputs]), "param 2 must list of string"
         assert hasattr(calibrator, "next"), "param 3 must hasattr next"
+        assert hasattr(calibrator, "number"), "param 3 must hasattr next"
         assert isinstance(batch_size, (int, type(None))),  "param 4 must be int"
         assert isinstance(cache, (basestring, type(None))),  "param 5 must be str"
         # step 1. check each name
@@ -150,6 +159,9 @@ class Dumper(object):
                 self.__data = None
                 self.__calibrator = calibrator
                 self.__i = 0
+
+            def number(self):  # type: () -> int
+                return self.__calibrator.number()
 
             def next(self):
                 while True:
