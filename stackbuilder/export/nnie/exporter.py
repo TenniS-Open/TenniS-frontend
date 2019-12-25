@@ -89,8 +89,8 @@ def split_caffe(input_tsm, output_tsm, subdir=None, input_shape=None, export_mai
     return main_graph
 
 
-def export_image_list(module, output_names, calibrator, main, output_root, cache=None):
-    # type: (ts.Module, List[str], dumper.Calibrator, str, str, str) -> Dict[str, str]
+def export_image_list(module, output_names, calibrator, main, output_root, cache=None, device="cpu", device_id=0):
+    # type: (ts.Module, List[str], dumper.Calibrator, str, str, str, str, int) -> Dict[str, str]
     output_root = os.path.abspath(output_root)
     if not os.path.isdir(output_root):
         os.makedirs(output_root)
@@ -101,7 +101,7 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
         filename = os.path.join(output_root, "{}.{}.txt".format(main, fixed_name))
         map_name_filenames[name] = filename
 
-    extractor = dumper.Dumper(module, output_names, calibrator, 1, cache=cache)
+    extractor = dumper.Dumper(module, output_names, calibrator, 1, cache=cache, device=device, device_id=device_id)
 
     map_name_features = {}
     map_name_file_stream = {}
@@ -207,11 +207,13 @@ class NetInferer(object):
 
 
 class NNIEExporter(object):
-    def __init__(self):
+    def __init__(self, host_device="cpu", host_device_id=0):
         self.__original_module = None
         self.__input_shape = None
         self.__cmd = None   # path to cmd line
         self.__cache = None # cache temp files
+        self.__host_device = host_device
+        self.__host_device_id = host_device_id
         pass
 
     def load(self, module, input_shape=None):
@@ -252,7 +254,11 @@ class NNIEExporter(object):
         """
         output_root, output_name, output_ext = self._split_root_name_ext(filename)
         # 1. split caffe
-        main_graph = split_caffe(self.__original_module, filename, "model", self.__input_shape)
+        main_graph = split_caffe(input_tsm=self.__original_module,
+                                 output_tsm=filename,
+                                 subdir="model",
+                                 input_shape=self.__input_shape,
+                                 export_main=False)
         # 2. get image list
         sub_graph_inputs = set()
         sub_graph_count = main_graph.sub_count()
@@ -261,12 +267,14 @@ class NNIEExporter(object):
                 sub_graph_inputs.add(input.name)
         sub_graph_inputs = list(sub_graph_inputs)
         print("[INFO]: Building image list... ")
-        map_name_image_list = export_image_list(self.__original_module,
-                                                sub_graph_inputs,
-                                                calibrator,
-                                                output_name,
-                                                os.path.join(output_root, "data"),
-                                                self.__cache)
+        map_name_image_list = export_image_list(module=self.__original_module,
+                                                output_names=sub_graph_inputs,
+                                                calibrator=calibrator,
+                                                main=output_name,
+                                                output_root=os.path.join(output_root, "data"),
+                                                cache=self.__cache,
+                                                device=self.__host_device,
+                                                device_id=self.__host_device_id)
         summery_configs = []
         # 3. write nnie cfg file
         for i in range(sub_graph_count):

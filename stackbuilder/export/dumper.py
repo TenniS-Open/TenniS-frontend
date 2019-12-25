@@ -115,8 +115,8 @@ class _HookInputWorkbench(object):
 
 
 class Dumper(object):
-    def __init__(self, module, outputs, calibrator, batch_size=1, cache=None):
-        # type: (ts.Module, List[str], Calibrator, int, str) -> None
+    def __init__(self, module, outputs, calibrator, batch_size=1, cache=None, device="cpu", device_id=0):
+        # type: (ts.Module, List[str], Calibrator, int, str, str, int) -> None
         assert isinstance(module, ts.Module), "param 1 must be ts.Module"
         assert isinstance(outputs, (list, tuple)) and \
                all([isinstance(s, basestring) for s in outputs]), "param 2 must list of string"
@@ -126,7 +126,7 @@ class Dumper(object):
         # step 1. check each name
         _check_output_names(module.outputs, outputs)
         # step 2. build ts.backend.api.Workbench
-        workbench, md5 = _create_workbench(module, "cpu")
+        workbench, md5 = _create_workbench(module, device, device_id)
         print("[INFO]: Load workbench: {}".format(md5))
         if batch_size < 1:
             batch_size = 1
