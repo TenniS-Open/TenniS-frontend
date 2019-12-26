@@ -1,6 +1,6 @@
 import tensorstack as ts
 
-from .proto import caffe_pb2 as caffe
+from .proto import nnie_pb2 as caffe
 
 from typing import List
 import os
@@ -142,6 +142,12 @@ class CaffeNode(object):
         # type: () -> str
         return self.__name
 
+    @name.setter
+    def name(self, value):
+        # type: (str) -> None
+        self.__name = str(value)
+        self.__proto.name = self.__name
+
     @property
     def proto(self):
         # type: () -> caffe.LayerParameter
@@ -197,13 +203,52 @@ def convert2caffenode(node, cache=None):
     return caffenode
 
 
+def _make_sure_all_layer_name_diff(outputs, inputs=None):
+    # type: (List[Union[CaffeNode, CaffeNode.Top]], List[CaffeNode]) -> None
+    if inputs is None:
+        inputs = []
+
+    named = set()
+    set_layer_names = set()
+
+    def new_name(name):
+        if name in set_layer_names:
+            i = 0
+            while True:
+                new_name = "{}_{}".format(name, i)
+                if new_name in set_layer_names:
+                    i += 1
+                    continue
+                name = new_name
+                break
+        set_layer_names.add(name)
+        return name
+
+    def do_rename(node):
+        if node in named:
+            return
+        named.add(node)
+
+        if isinstance(node, CaffeNode.Top):
+            do_rename(node.node)
+        elif isinstance(node, CaffeNode):
+            node.name = new_name(node.name)
+            for b in node.bottoms:
+                do_rename(b)
+
+    for node in list(inputs) + list(outputs):
+        do_rename(node)
+
+
 def _build_layers_setup_bottom_top(outputs, inputs):
-    # type: (List[Union[CaffeNode, CaffeNode.Top]]) -> List[CaffeNode]
+    # type: (List[Union[CaffeNode, CaffeNode.Top]], List[CaffeNode]) -> List[CaffeNode]
     """
 
     :param nodes: List as inputs + outputs, the return list are input first
     :return:
     """
+    _make_sure_all_layer_name_diff(outputs, inputs)
+
     nodes = inputs + outputs
 
     set_blob_names = set()
@@ -720,6 +765,7 @@ def convert_inner_prod(node, cache):
 
 
 register_node_converter("inner_prod", convert_inner_prod)
+register_node_converter("caffe:inner_prod", convert_inner_prod)
 
 
 def convert_concat(node, cache):
@@ -753,3 +799,20 @@ def convert_neg(node, cache):
 
 
 register_node_converter("neg", convert_neg)
+
+
+def convert_transpose(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Permute", node.name, [x])
+    param = cn.proto.permute_param
+    blobs = cn.proto.blobs
+
+    permute = list(node.get("permute"))
+
+    param.order.extend(permute)
+
+    return cn
+
+
+register_node_converter("_transpose", convert_transpose)

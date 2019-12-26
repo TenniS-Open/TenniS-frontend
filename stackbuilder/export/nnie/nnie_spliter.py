@@ -71,9 +71,9 @@ def get_spliter():
     ]))
     gs.support(if_no_broadcast_reduce("add"))
     gs.support("relu")
-    gs.route("flatten")
+    # gs.route("flatten")
     gs.support("inner_prod")
-    gs.route("_reshape")
+    gs.route(MetaNode("_reshape", shape=HasShape(4)))
     gs.support(MetaGraph([
         {"#op": "concat",
          "dim": GE(-3) & LE(3) & NE(0),
@@ -84,4 +84,9 @@ def get_spliter():
         {"#op": ts.Node.Const, "value": EQ(0)},
         ({"#op": "sub", "#shape": HasShape(4)}, {0: -1})
     ]))
+    gs.support(MetaNode({
+        "#op": "_transpose",
+        "permute": EQ([0, 2, 3, 1])
+    }))
+    gs.support(lambda x: x.op[:6] == "caffe:")
     return gs

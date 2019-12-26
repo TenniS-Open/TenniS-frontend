@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-from .proto import caffe_pb2 as caffe
-
 from typing import Union
 import tensorstack as ts
 
@@ -63,9 +61,7 @@ def split_caffe(input_tsm, output_tsm, subdir=None, input_shape=None, export_mai
     print("[INFO]: Freezing graph...")
     outputs, inputs = fridge.freeze(outputs, inputs, input_shape)
     print("[INFO]: Split graph...")
-    fence_cache = {}
-    outputs = nnie_fence.get_fence().convert(outputs, cache=fence_cache)
-    inputs = [fence_cache[i] for i in inputs]
+    outputs, inputs = nnie_fence.get_fence().convert(outputs, after=inputs)
     main_graph = nnie_spliter.get_spliter().split(outputs, inputs)
     print("[INFO]: Convert graph...")
     nnie_count = main_graph.sub_count()
@@ -130,6 +126,7 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
             lines = []
             for data in features:
                 flatten_data = numpy.asarray(data).reshape([-1])
+                # print("Data size: {}={}".format(len(flatten_data), "*".join([str(i) for i in data.shape])))
                 lines.append(" ".join(["%.3g" % f for f in flatten_data]))
                 lines.append("\n")
                 P[0] += 1
@@ -341,8 +338,10 @@ class NNIEExporter(object):
 
         # 4. write main tsm file
         main_module = ts.Module()
-        main_module.load(main_graph.outputs)
-        main_module.sort_inputs(main_graph.inputs)
+        main_module_outputs, main_module_inputs = \
+            nnie_fence.back_fence().convert(main_graph.outputs, after=main_graph.inputs)
+        main_module.load(main_module_outputs)
+        main_module.sort_inputs(main_module_inputs)
 
         if not os.path.isdir(output_root):
             os.makedirs(output_root)

@@ -167,21 +167,37 @@ class Fence(object):
             return node
         return cvt_node
 
-    def convert(self, node, cache=None):
-        # type: (Union[ts.Node, List[ts.Node]], Dict[ts.Node, ts.Node]) -> Union[ts.Node, List[ts.Node]]
+    def convert(self, node, cache=None, after=None):
+        # type: (Union[ts.Node, List[ts.Node]], Dict[ts.Node, ts.Node], List[ts.Node]) -> Union[ts.Node, List[ts.Node]]
         """
         Convert node and list of node
         :param node: ts.Node of list of ts.Node, ready to convert
         :param cache: map of original node to converted node
+        :param after: ts.Node of list of ts.Node, return converted more node in graph
         :return: converted node or list of node
         """
+        if cache is None:
+            cache = {}
+
         graph, _ = self._walk_graph(node)
         if isinstance(node, ts.Node):
-            return self._convert_check_none(node, graph, cache)
+            out1 = self._convert_check_none(node, graph, cache)
         elif isinstance(node, (list, tuple)):
-            return [self._convert_check_none(i, graph, cache) for i in node]
+            out1 = [self._convert_check_none(i, graph, cache) for i in node]
         else:
-            raise ValueError()
+            raise ValueError("param 1 must be ts.Node or list of ts.Node")
+
+        if after is None:
+            return out1
+
+        if isinstance(after, ts.Node):
+            out2 = cache[after]
+        elif isinstance(after, (list, tuple)):
+            out2 = [cache[m] for m in after]
+        else:
+            raise ValueError("param more must be ts.Node or list of ts.Node")
+
+        return out1, out2
 
 
 if __name__ == "__main__":
