@@ -311,14 +311,15 @@ class NNIEExporter(object):
             graph = main_graph.sub_graph(i)
 
             # ref wk filename
-            wk_filename = os.path.join("inst", "{}.{}".format(output_name, i))
-            print("[INFO]: Waiting... {}.wk".format(wk_filename))
+            wk_instruction_name = os.path.join("inst", "{}.{}".format(output_name, i))
+            wk_filename = wk_instruction_name + ".wk"
+            print("[INFO]: Waiting... {}".format(wk_filename))
 
             # write config
             cfg = nnie_config.Config()
             cfg.prototxt_file = os.path.join("model", "{}.{}.wk.prototxt".format(output_name, i))
             cfg.caffemodel_file = os.path.join("model", "{}.{}.wk.caffemodel".format(output_name, i))
-            cfg.instruction_name = wk_filename
+            cfg.instruction_name = wk_instruction_name
             cfg.batch_num = 0
             cfg.log_level = 2
             for graph_input in graph.inputs:
