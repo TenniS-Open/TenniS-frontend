@@ -36,7 +36,8 @@ def if_no_broadcast_reduce(op):
 
 def get_spliter():
     # type: () -> GraphSpliter
-    gs = GraphSpliter(only_max_graph_out=True, single_input=False, single_output=False)
+    gs = GraphSpliter(only_max_graph_out=True, single_input=False, single_output=False,
+                      log_end_nodes=True)
     gs.route(ts.Node.Const)
     gs.support(MetaGraph([
         ts.Node.Const,

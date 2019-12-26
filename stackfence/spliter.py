@@ -10,7 +10,7 @@ else:
     from Queue import Queue
 
 from collections import deque as Deque
-from typing import Optional
+from typing import Optional, Iterable
 
 import logging
 
@@ -187,6 +187,14 @@ class TopFirstQueue(object):
         self.ref = ref
         self.__list = []
 
+    def __contains__(self, item):
+        return item in self.__list
+
+    def extend(self, iter):
+        # type: (Iterable) -> None
+        for item in iter:
+            self.append(item)
+
     def append(self, node):
         # type: (ts.Node) -> None
         self.__list.append(node)
@@ -220,6 +228,14 @@ class BottomFirstQueue(object):
         self.ref = ref
         self.__list = []
 
+    def __contains__(self, item):
+        return item in self.__list
+
+    def extend(self, iter):
+        # type: (Iterable) -> None
+        for item in iter:
+            self.append(item)
+
     def append(self, node):
         # type: (ts.Node) -> None
         self.__list.append(node)
@@ -247,11 +263,36 @@ class BottomFirstQueue(object):
         return n
 
 
+class OrderRecoder(object):
+    def __init__(self):
+        self.__map_item_order = {}
+        self.__serial = 0
+
+    def append(self, item):
+        self.__map_item_order[item] = self.__serial
+        self.__serial += 1
+
+    def extend(self, iter):
+        for item in iter:
+            self.append(item)
+
+    def clear(self):
+        self.__map_item_order = {}
+        self.__serial = 0
+
+    def __contains__(self, item):
+        return item in self.__map_item_order
+
+    def __getitem__(self, item):
+        return self.__map_item_order[item]
+
+
 class GraphSpliter(object):
     def __init__(self, single_input=False, single_output=False,
                  logging_level=logging.INFO,
                  min_graph_size=0,
-                 only_max_graph_out=False):
+                 only_max_graph_out=False,
+                 log_end_nodes=False):
         logging.basicConfig(level=logging_level, format='%(asctime)s %(name)s [%(levelname)s]: %(message)s')
         self.logger = logging.getLogger("GraphSpliter")
 
@@ -262,6 +303,7 @@ class GraphSpliter(object):
         self.__single_output = single_output
         self.__min_graph_size = min_graph_size
         self.__only_max_graph_out = only_max_graph_out
+        self.__log_end_nodes = log_end_nodes
 
     @property
     def single_input(self):
@@ -357,8 +399,8 @@ class GraphSpliter(object):
             tips = {}
         return [self._clone_node(node, cache=cache, tips=tips) for node in nodes]
 
-    def _explore(self, node, ref, dead=None, final=None):
-        # type: (ts.Node, RefCache, Set[ts.Node], Set[ts.Node]) -> Tuple[List[ts.Node], List[ts.Node]]
+    def _explore(self, node, ref, dead=None):
+        # type: (ts.Node, RefCache, Set[ts.Node]) -> Tuple[Optional[List[ts.Node]], Optional[List[ts.Node]]]
         """
         :param node: start nodes
         :param ref: graph nodes refs
@@ -368,9 +410,9 @@ class GraphSpliter(object):
         """
         if dead is None:
             dead = {}
-        if final is None:
-            final = set()
-        final.add(node)
+
+        if node in dead or not self.is_route_or_support(node):
+            return None, None
 
         start = node
         # contains graph input nodes
@@ -380,17 +422,21 @@ class GraphSpliter(object):
         # contains all graph node
         graph_nodes = set()
 
+        recoder = OrderRecoder()
+
         if self.single_output:
-            graph_set = set()   # contains all nodes in graph
+            graph_set = {start, }   # contains all nodes in graph
             input_set = set()     # not support nodes, as graph inputs
             output_set = {start, }
 
             walked = set()
-            re_walk_count = 0   # means now many re_walk node in walking set
-
+            walked.add(start)
+            recoder.append(start)
             walking = TopFirstQueue(ref)
-            walking.append(node)
-            while len(walking) > 0 and re_walk_count < len(walking):
+            walking.extend(start.inputs)
+            recoder.extend(start.inputs)
+
+            while len(walking) > 0:
                 n = walking.pop()
                 if n in walked:
                     continue
@@ -399,54 +445,36 @@ class GraphSpliter(object):
                 if n not in dead and \
                         self.is_route_or_support(n) and \
                         not any([ref.ref(t, n) for t in input_set]) and \
-                        not any([ref.ref(n, t) for t in output_set]):
-                    # check if n can be output node
-                    if n != start:
-                        n_outputs = set(n.outputs)
-                        n_not_in_graph_outputs = n_outputs - graph_set
-                        if len(n_not_in_graph_outputs) > 0:
-                            walked.remove(n)
-                            walking.append(n)  # re-walk
-                            re_walk_count += 1
-                            continue
-                    re_walk_count = 0
-
+                        not any([ref.ref(n, t) for t in output_set]) and \
+                        len(set(n.outputs) - graph_set) == 0:
                     # not output node should be included in graph
                     graph_set.add(n)    # add to graph set, already check before in walking
                     for i in n.inputs:
-                        if self.is_route_or_support(i):
+                        if i not in walked:
                             walking.append(i)
-                        else:
-                            input_set.add(i)
-                            walked.add(i)
+                            recoder.append(i)
                 else:
                     input_set.add(n)
-
-            while len(walking) > 0:
-                n = walking.pop()
-                if n in walked:
-                    continue
-                walked.add(n)
-                input_set.add(n)
 
             graph_outputs = {start}
             graph_inputs = input_set
             graph_nodes = graph_set
         else:
             # multi outputs explore, walk output
-            graph_set = set()   # contains all nodes in graph
+            graph_set = {start, }   # contains all nodes in graph
             input_set = set()     # not support nodes, as graph inputs
-            output_set = set()  # may output later, filter after all found
-
-            walked = set()
+            output_set = {start, }  # may output later, filter after all found
 
             next_input_deque = TopFirstQueue(ref)
             next_output_deque = BottomFirstQueue(ref)
             next_input_empty = False
             next_output_empty = False
 
-            next_input_deque.append(start)
-            output_set.add(start)
+            walked = set()
+            walked.add(start)
+            recoder.append(start)
+            next_input_deque.extend(start.inputs)
+            recoder.extend(start.inputs)
 
             while True:
                 next_input_empty = len(next_input_deque) == 0
@@ -463,22 +491,15 @@ class GraphSpliter(object):
                             self.is_route_or_support(n) and \
                             not any([ref.ref(t, n) for t in input_set]) and \
                             not any([ref.ref(n, t) for t in output_set]):
-                        # check if n can be output node
-                        n_outputs = set(n.outputs)
-                        n_not_in_graph_outputs = n_outputs - graph_set
-                        if len(n_not_in_graph_outputs) > 0:
-                            output_set.add(n)
-
                         graph_set.add(n)    # add to graph set, already check before in walking
                         for i in n.inputs:
-                            if self.is_route_or_support(i):
+                            if i not in walked:
                                 next_input_deque.append(i)
-                            else:
-                                input_set.add(i)
-                                walked.add(i)
+                                recoder.append(i)
                         for o in n.outputs:
-                            if o not in dead and o not in walked:
+                            if o not in walked:
                                 next_output_deque.append(o)
+                                recoder.append(o)
                     else:
                         input_set.add(n)
 
@@ -486,8 +507,6 @@ class GraphSpliter(object):
                 if next_input_empty and next_output_empty:
                     break
 
-                not_sure_output_list =[]
-                sure_output_count = 0
                 while len(next_output_deque) > 0:
                     n = next_output_deque.pop()
                     assert isinstance(n, ts.Node)
@@ -498,34 +517,26 @@ class GraphSpliter(object):
                             self.is_route_or_support(n) and \
                             not any([ref.ref(t, n) for t in input_set]) and \
                             not any([ref.ref(n, t) for t in output_set]):
-                        n_inputs = set(n.inputs)
-                        n_unsatisfied_inputs = n_inputs - input_set - graph_set
-                        if len(n_unsatisfied_inputs) == 0:
-                            output_set.add(n)
-                            graph_set.add(n)
-                            sure_output_count += 1
-                            for o in n.outputs:
-                                if o not in dead and o not in walked:
-                                    next_output_deque.append(o)
-                            for i in n.inputs:
-                                if i not in dead and i not in walked:
-                                    next_input_deque.append(i)
-                        else:
-                            not_sure_output_list.append(n)
+                        graph_set.add(n)    # add to graph set, already check before in walking
+                        for i in n.inputs:
+                            if i not in walked:
+                                next_input_deque.append(i)
+                                recoder.append(i)
+                        for o in n.outputs:
+                            if o not in walked:
+                                next_output_deque.append(o)
+                                recoder.append(o)
                     else:
-                        # if not support nothing to do
-                        pass
-                if sure_output_count > 0:
-                    for o in not_sure_output_list:
-                        next_output_deque.append(o)
+                        output_set.add(n)
 
             # now input_set and graph_set ready, check output_set
-            graph_outputs = set()
+            graph_outputs = {start}
             for o in output_set:
-                o_outputs = set(o.outputs)
-                n_not_in_graph_outputs = o_outputs - graph_set
-                if len(n_not_in_graph_outputs) > 0 or o in final:
-                    graph_outputs.add(o)
+                if o == start:  # start must be output
+                    continue
+                for i in o.inputs:
+                    if i in graph_set:
+                        graph_outputs.add(i)    # end point in graph node is output node
             graph_inputs = input_set
             graph_nodes = graph_set
 
@@ -576,7 +587,15 @@ class GraphSpliter(object):
         if not has_support:
             return None, None
 
-        return list(graph_outputs), list(graph_inputs)
+        graph_inputs = list(graph_inputs)
+        graph_outputs = list(graph_outputs)
+
+        if len(graph_inputs) > 1:
+            graph_inputs.sort(key=lambda x: recoder[x])
+        if len(graph_outputs) > 1:
+            graph_outputs.sort(key=lambda x: recoder[x], reverse=True)
+
+        return graph_outputs, graph_inputs
 
     def _count(self, iter, func):
         n = 0
@@ -621,20 +640,23 @@ class GraphSpliter(object):
         if inputs is not None:
             inputs = [cache[i] if isinstance(i, ts.Node) else i for i in inputs]
 
-        ref = RefCache(outputs=outputs)
+        logic_output = ts.Node("output", "output")
+        ts.Node.Link(logic_output, outputs)
+
+        ref = RefCache(outputs=[logic_output])
 
         # ========================================================================================= #
         walked_set = set()   # contains all split nodes
+        walked_set.add(logic_output)
         supported_graphs = []   # list of SubGraph
-        all_graph_nodes = []    # contains graph's all outputs
         # 1. walk each node, split it to supported graph or original graph
         #     If found an supported graph, build a SubGraph
         #     Use Queue check each node, if an node is supported, than walk all linked node, summery sub graph
-        walking = Queue()
+        walking = TopFirstQueue(ref)
         for n in outputs:
-            walking.put(n)
+            walking.append(n)
         while not walking.empty():
-            n = walking.get()
+            n = walking.pop()
             assert isinstance(n, ts.Node)
             if n in walked_set:
                 continue
@@ -643,7 +665,7 @@ class GraphSpliter(object):
 
             if n.op != ts.Node.Const and self.is_route_or_support(n):
                 # now, walk all supported nodes
-                sub_outputs, sub_inputs = self._explore(n, ref, walked_set, set(outputs))
+                sub_outputs, sub_inputs = self._explore(n, ref, walked_set)
                 # check if this node can be split to an sub-graph
                 if sub_outputs is not None:
                     # build SubGraph
@@ -651,17 +673,18 @@ class GraphSpliter(object):
                     sub_graph.sort_inputs(sub_inputs)
                     walked_set |= set(sub_graph.nodes)
                     for i in sub_graph.inputs:
-                        walking.put(i)
+                        walking.append(i)
                     supported_graphs.append(sub_graph)
                     continue
 
+            # here, n is not support node
             walked_set.add(n)
             for i in n.inputs:
-                walking.put(i)
+                walking.append(i)
             # next loop
 
         # ========================================================================================= #
-        # Optimize sub graphs
+        # Optimize sub graphs, merge each two not related graph
         if not self.single_input and not self.single_output:
             # merge not loop graph
             while len(supported_graphs) > 1:
@@ -714,11 +737,12 @@ class GraphSpliter(object):
         # ========================================================================================= #
         # sort sub graphs, relied first
         # no sort now, use clone tips parameter fix the clone bug
+        # remove logic output
+        ts.Node.Link(logic_output, [])
 
         # 2. build each graph to submodule,
         # 2.1 build node in map, use clone graph method
         # 2.1.1. clone sub graph
-        sub_graph_ending_plot = set()
         main_sub_graphs = []
         for i, sub_graph in enumerate(supported_graphs):
             sub_cache = {}
@@ -730,25 +754,32 @@ class GraphSpliter(object):
             g = SubGraph(sub_outputs, sub_inputs)
             g.sort_inputs(sub_inputs)
             main_sub_graphs.append(g)
-            # Base information the sub graph ending
-            for sub_graph_input in sub_graph.inputs:
-                if sub_graph_input in sub_graph_ending_plot:
-                    continue
-                sub_graph_ending_plot.add(sub_graph_input)
-                if sub_graph_input.op == ts.Node.Parameter:
-                    continue
-                print("[====]: Sub graph end: {}:{}".format(sub_graph_input.op, sub_graph_input.name))
 
-        for sub_graph in supported_graphs:
-            for sub_graph_output in sub_graph.outputs:
-                for soo in sub_graph_output.outputs:
-                    if soo in sub_graph_ending_plot:
+        if self.__log_end_nodes:
+            end_plot = set()
+
+            for n, sub_graph in enumerate(supported_graphs):
+                print("[====]: Sub graph {}: input={}, output={}".format(
+                    n, len(sub_graph.inputs), len(sub_graph.outputs)))
+                for g_i in sub_graph.inputs:
+                    if g_i in end_plot:
                         continue
-                    sub_graph_ending_plot.add(soo)
-                    print("[====]: Sub graph start: {}:{}".format(soo.op, soo.name))
+                    end_plot.add(g_i)
+                    if g_i.op == ts.Node.Parameter:
+                        continue
+                    print("[====]: Sub graph bottom: {}:{}".format(g_i.op, g_i.name))
+                for g_o in sub_graph.outputs:
+                    for o in g_o.outputs:
+                        if o in end_plot:
+                            continue
+                        end_plot.add(o)
+                        if o in sub_graph.nodes:
+                            continue
+                        print("[====]: Sub graph top: {}:{}".format(o.op, o.name))
 
-        if len(sub_graph_ending_plot) == 0:
-            print("[====]: Sub graph = main graph.")
+            if len(end_plot) == 0:
+                print("[====]: Sub graph = main graph.")
+                pass
 
         # 2.1.2 clone main graph
         main_tips = {}
