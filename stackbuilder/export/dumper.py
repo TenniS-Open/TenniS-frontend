@@ -195,8 +195,8 @@ class Dumper(object):
 
     def _cache_file_path(self, inputs, output):
         # type: (List[numpy.ndarray], str) -> str
-        output = output.replace("/", "#")
-        output = output.replace("\\", "#")
+        output = output.replace("/", "=")
+        output = output.replace("\\", "=")
         filepath = os.path.join(self.__cache,
                                 "tensorstack", "dump",
                                 self.__md5,

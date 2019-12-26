@@ -341,6 +341,88 @@ def convert_param(node, cache):
 
 register_node_converter("<param>", convert_param)
 
+import math
+
+
+def conv2d_forward(x, padding, dilation, kernel, stride):
+    return int(math.floor((x + padding - (dilation * (kernel - 1) + 1)) / stride + 1))
+
+
+def conv2d_backward(y, padding, dilation, kernel, stride):
+    return (y - 1) * stride + (dilation * (kernel - 1) + 1) - padding
+
+
+def pooling2d_forward(x, padding, kernel, stride):
+    return int(math.ceil((x + padding - kernel) / float(stride) + 1))
+
+
+def pooling2d_backward(y, padding, kernel, stride):
+    return (y - 1) * stride + kernel - padding
+
+
+def conv2d_same_padding(x, padding, dilation, kernel, stride):
+    # type: (int, Tuple[int], int, int, int) -> Tuple[int]
+    if padding[0] == padding[1]:
+        return padding
+    y = conv2d_forward(x, padding[0] + padding[1], dilation, kernel, stride)
+    if y == conv2d_forward(x, padding[0] + padding[0], dilation, kernel, stride):
+        return [padding[0], padding[0]]
+
+    padding_min = conv2d_backward(y, x, dilation, kernel, stride)
+    padding_max = padding_min + (stride - 1)
+
+    padding_left_diff = stride * 2
+    padding_left = None
+    padding_right = None
+    for i in range(padding_min, padding_max + 1):
+        if i % 2 != 0:
+            continue
+        may_padding_left = i // 2
+        may_padding_left_diff = abs(may_padding_left - padding[0])
+        if may_padding_left_diff < padding_left_diff:
+            padding_left_diff = may_padding_left_diff
+            padding_left = may_padding_left
+            padding_right = padding_left
+
+    if padding_left is None or padding_right is None:
+        raise ValueError("Conv2D can not same padding with: x={}, padding={}, dilation={}, kernel={}, stride={}".format(
+            x, padding, dilation, kernel, stride
+        ))
+
+    return [padding_left, padding_right]
+
+
+def pooling2d_same_padding(x, padding, kernel, stride):
+    # type: (int, Tuple[int], int, int) -> Tuple[int]
+    if padding[0] == padding[1]:
+        return padding
+    y = pooling2d_forward(x, padding[0] + padding[1], kernel, stride)
+    if y == pooling2d_forward(x, padding[0] + padding[0], kernel, stride):
+        return [padding[0], padding[0]]
+
+    padding_max = pooling2d_backward(y, x, kernel, stride)
+    padding_min = padding_max - (stride - 1)
+
+    padding_left_diff = stride * 2
+    padding_left = None
+    padding_right = None
+    for i in range(padding_min, padding_max + 1):
+        if i % 2 != 0:
+            continue
+        may_padding_left = i // 2
+        may_padding_left_diff = abs(may_padding_left - padding[0])
+        if may_padding_left_diff < padding_left_diff:
+            padding_left_diff = may_padding_left_diff
+            padding_left = may_padding_left
+            padding_right = padding_left
+
+    if padding_left is None or padding_right is None:
+        raise ValueError("Polling2d can not same padding with: x={}, padding={}, kernel={}, stride={}".format(
+            x, padding, kernel, stride
+        ))
+
+    return [padding_left, padding_right]
+
 
 def convert_conv2d(node, cache):
     # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
@@ -362,6 +444,18 @@ def convert_conv2d(node, cache):
     stride = numpy.asarray(node.get("stride")).reshape([-1])[-2:]
     dilation = numpy.asarray(node.get("dilation")).reshape([-1])[-2:]
     kernel_size = W.shape[-2:]
+    input_size = list(node.inputs[0].shape)[-2:]
+
+    pad_h = conv2d_same_padding(input_size[0], padding[0], dilation[0], kernel_size[0], stride[0])
+    pad_w = conv2d_same_padding(input_size[1], padding[1], dilation[1], kernel_size[1], stride[1])
+
+    if pad_h[0] != padding[0, 0] or pad_w[0] != padding[1, 0]:
+        print("[WARNING]: Layer {}:{} change padding [{}, {}] => [{}, {}]".format(
+            node.op, node.name, padding[0], padding[1], pad_h, pad_w
+        ))
+
+    padding[0, :] = pad_h
+    padding[1, :] = pad_w
 
     if kernel_size[0] == kernel_size[1]:
         param.kernel_size.extend(kernel_size[-1:])
@@ -448,6 +542,18 @@ def convert_pooling2d(node, cache):
     stride = numpy.asarray(node.get("stride")).reshape([-1])[-2:]
     ksize = numpy.asarray(node.get("ksize")).reshape([-1])[-2:]
     type = int(node.get("type"))
+    input_size = list(node.inputs[0].shape)[-2:]
+
+    pad_h = pooling2d_same_padding(input_size[0], padding[0], ksize[0], stride[0])
+    pad_w = pooling2d_same_padding(input_size[1], padding[1], ksize[1], stride[1])
+
+    if pad_h[0] != padding[0, 0] or pad_w[0] != padding[1, 0]:
+        print("[WARNING]: Layer {}:{} change padding [{}, {}] => [{}, {}]".format(
+            node.op, node.name, padding[0], padding[1], pad_h, pad_w
+        ))
+
+    padding[0, :] = pad_h
+    padding[1, :] = pad_w
 
     if ksize[0] == ksize[1]:
         param.kernel_size = ksize[0]

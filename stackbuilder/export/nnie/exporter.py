@@ -100,8 +100,8 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
         os.makedirs(output_root)
     map_name_filenames = {}
     for name in output_names:
-        fixed_name = name.replace("/", "#")
-        fixed_name = fixed_name.replace("\\", "#")
+        fixed_name = name.replace("/", "=")
+        fixed_name = fixed_name.replace("\\", "=")
         filename = os.path.join(output_root, "{}.{}.txt".format(main, fixed_name))
         map_name_filenames[name] = filename
 
@@ -115,9 +115,10 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
         map_name_file_stream[name] = open(filename, "w")
 
     P = [0, 0, calibrator.number()]
+    S = len(output_names)
 
     def process_show():
-        sys.stdout.write("\r[{}/{}/{}]".format(*P))
+        sys.stdout.write("\r[{:.2g}/{}/{}]   ".format(float(P[0]) / S, P[1], P[2]))
         sys.stdout.flush()
 
     process_show()
