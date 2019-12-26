@@ -56,6 +56,13 @@ def fuse_bias_reshape(node):
     return bias
 
 
+def change_sub_neg(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    x = node.inputs[1]
+
+    return ts.menu.op(node.name, "neg", [x])
+
+
 def _get_caffe_fence():
     fence = Fence()
     fence.register(MetaGraph([
@@ -74,6 +81,10 @@ def _get_caffe_fence():
         "add_bias",
         ("_reshape", -1)
     ]), fuse_bias_reshape)
+    fence.register(MetaGraph([
+        {"#op": ts.Node.Const, "value": EQ(0)},
+        ({"#op": "sub", "#shape": HasShape(4)}, {0: -1})
+    ]), change_sub_neg)
     return fence
 
 
@@ -229,10 +240,18 @@ def _build_layers_setup_bottom_top(outputs, inputs):
     for n in nodes:
         do_map_node_top_name(n)
 
+    bottom_used_count = {}
+    for n in layers:
+        for bottom in n.bottoms:
+            if bottom in bottom_used_count:
+                bottom_used_count[bottom] += 1
+            else:
+                bottom_used_count[bottom] = 1
+
     for n in layers[::-1]:
         if isinstance(n, CaffeNode):
             if str(n.proto.type) in {"ELU", "Exp", "Log", "Power", "PReLU", "ReLU", "Sigmoid", "TanH", "RReLU"}:
-                if n.bottoms[0] not in inputs:
+                if n.bottoms[0] not in inputs and bottom_used_count[n.bottoms[0]] == 1:
                     map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
 
     for n in layers:
@@ -717,3 +736,20 @@ def convert_concat(node, cache):
 
 
 register_node_converter("concat", convert_concat)
+
+
+def convert_neg(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Power", node.name, [x])
+    param = cn.proto.power_param
+    blobs = cn.proto.blobs
+    # Use Power layer: power = 1, scale = -1.0, shift = 0
+    param.power = 1
+    param.scale = -1
+    param.shift = 0
+
+    return cn
+
+
+register_node_converter("neg", convert_neg)

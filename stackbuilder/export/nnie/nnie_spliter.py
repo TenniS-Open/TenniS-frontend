@@ -77,7 +77,11 @@ def get_spliter():
     gs.support(MetaGraph([
         {"#op": "concat",
          "dim": GE(-3) & LE(3) & NE(0),
-         "#shape": EQ([None, None, None, None])}
+         "#shape": HasShape(4)}
     ]))
     gs.support(if_no_broadcast_reduce("sub"))
+    gs.support(MetaGraph([
+        {"#op": ts.Node.Const, "value": EQ(0)},
+        ({"#op": "sub", "#shape": HasShape(4)}, {0: -1})
+    ]))
     return gs
