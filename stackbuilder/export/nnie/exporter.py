@@ -319,7 +319,7 @@ class NNIEExporter(object):
             cfg.caffemodel_file = os.path.join("model", "{}.{}.wk.caffemodel".format(output_name, i))
             cfg.instruction_name = wk_instruction_name
             cfg.batch_num = 0
-            cfg.log_level = 2
+            cfg.log_level = 0
             for graph_input in graph.inputs:
                 iname = graph_input.name
                 image_list = os.path.relpath(map_name_image_list[iname], output_root)
