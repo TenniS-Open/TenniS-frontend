@@ -695,6 +695,9 @@ def convert_batch_norm(node, cache):
     if node.has("epsilon"):
         epsilon = float(node.get("epsilon"))
 
+    if abs(epsilon - 1e-5) > 1e-7:
+        var = var + epsilon - 1e-5
+
     assert dim == 1
 
     # param.eps = epsilon
