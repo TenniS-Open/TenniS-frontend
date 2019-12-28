@@ -117,6 +117,7 @@ def test():
 
     exporter.nnie_mapper = "/home/kier/working/nnie_mapper_linux/nnie_mapper_gpu_12"
     exporter.config(is_simulation=False)
+    exporter.max_batch_size = 1
 
     exporter.load(input_module, input_shape)
     # exporter.export_caffe(output_module)

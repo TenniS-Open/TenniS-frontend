@@ -237,6 +237,7 @@ class NNIEExporter(object):
             raise ValueError("nnie version must be string 11 or 12")
         self.__nnie_version = nnie_version
         self.__extra_configs = {}
+        self.__max_batch_size = 1   # default max batch size
         pass
 
     @property
@@ -246,6 +247,17 @@ class NNIEExporter(object):
     @nnie_mapper.setter
     def nnie_mapper(self, value):
         self.__nnie_mapper = value
+
+    @property
+    def max_batch_size(self):
+        return self.__max_batch_size
+
+    @max_batch_size.setter
+    def max_batch_size(self, value):
+        value = int(value)
+        if not 1 <= value <= 256:
+            raise ValueError("max_batch_size must be in [1, 256]")
+        self.__max_batch_size = value
 
     def load(self, module, input_shape=None):
         # type: (ts.Module, Union[List[Tuple[int]], Dict[str, Tuple[int]]]) -> None
@@ -291,6 +303,7 @@ class NNIEExporter(object):
         nnie operator define:
         nnie(List[Tensor]) -> List[Tensor]
         attrs:
+            `max_batch_size` `Int` `Optional` `Default=1`
             `input_count` `Int` `Required`
             `output_count` `Int` `Required`
             `wk_file` `String` `Required` path to wk file
@@ -353,6 +366,7 @@ class NNIEExporter(object):
 
             # update node
             node.op = "nnie"
+            node.set("max_batch_size", self.__max_batch_size, numpy.int32)     # required
             node.set("input_count", len(graph.inputs), numpy.int32)     # required
             node.set("output_count", len(graph.outputs), numpy.int32)   # required
             node.set("wk_file", wk_filename)    # required
