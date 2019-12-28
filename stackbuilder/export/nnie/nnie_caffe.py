@@ -401,8 +401,19 @@ def convert_param(node, cache):
     cn = CaffeNode("Input", name=node.name)
     param = cn.proto.input_param
 
-    shape = node.get("#shape")
-    update_blob_shape(param.shape.add(), list(shape))
+    shape = list(node.get("#shape"))
+
+    if len(shape) < 1:
+        raise ValueError("Input shape must be 4D, got {}".format(shape))
+
+    for dim in shape[1:]:
+        if dim <= 0:
+            raise ValueError("Input shape must be definite, got {}".format(shape))
+
+    if shape[0] <= 0:
+        shape[0] = 1
+
+    update_blob_shape(param.shape.add(), shape)
 
     return cn
 

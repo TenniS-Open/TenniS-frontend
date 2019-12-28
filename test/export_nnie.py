@@ -28,7 +28,7 @@ class MyCalibrator(Calibrator):
         dataroot = ""
         filelist = []
         if os.path.isdir(dataset):
-            dataroot = dataset
+            dataroot = os.path.abspath(dataset)
             listdir = os.listdir(dataroot)
             for filename in listdir:
                 _, ext = os.path.splitext(filename)
@@ -103,20 +103,25 @@ class MyImageFilter(object):
 
 
 def test():
-    input_module = "../rawmd/RN30.light.tsm"
-    input_shape = [[1, 3, 248, 248]]
-    output_module = "./temp/RN30.nnie.tsm"
-    dataset_root = "/Users/seetadev/Documents/Files/nnie/quantization_248x248_2"
+    working_root = "/home/kier/working/nnie/"
+    input_module = working_root + "rawmd/RN30.light.tsm"
+    input_shape = [[-1, 3, 248, 248]]
+    output_module = working_root + "output/test/Q2T/RN30.nnie.tsm"
+    dataset_root = working_root + "quantization_248x248_2"
 
     print("=========== Start test ==============")
-    exporter = NNIEExporter()
+    exporter = NNIEExporter(host_device="gpu")
     calibrator = MyCalibrator(dataset_root)
     image_filter = MyImageFilter()
     calibrator.image_filter = image_filter
 
+    exporter.nnie_mapper = "/home/kier/working/nnie_mapper_linux/nnie_mapper_gpu_12"
+    exporter.config(is_simulation=False)
+
     exporter.load(input_module, input_shape)
     # exporter.export_caffe(output_module)
-    exporter.export_nnie_cfg(output_module, calibrator)
+    # exporter.export_nnie_cfg(output_module, calibrator)
+    exporter.export_tsm_with_wk(output_module, calibrator)
 
 
 if __name__ == '__main__':

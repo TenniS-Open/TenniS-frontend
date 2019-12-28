@@ -155,3 +155,37 @@ def clone_bubble(node):
         dolly.set(k, v)
 
     return dolly
+
+
+def walk_graph(nodes, endpoints=None, cache=None):
+    # type: (Union[ts.Node, List[ts.Node]], Set[ts.Node], Set[ts.Node]) -> Tuple[Set[ts.Node], Set[ts.Node]]
+    """
+    :param nodes: start walk nodes
+    :param endpoints: end nodes set, if walking on end nodes set, return the node in return value's second value
+    :return: tuple of 2 set: (in graph nodes, in endpoints nodes or input nodes)
+    """
+    if endpoints is None:
+        endpoints = set()
+    if cache is None:
+        cache = set()
+    if isinstance(nodes, Node):
+        nodes = [nodes, ]
+
+    in_graph = set()
+    in_ends = set()
+    for node in nodes:
+        # .1 check cache
+        if node in cache:
+            continue
+        # .2 check if end
+        if node in endpoints:
+            in_ends.add(node)
+            cache.add(node)
+            continue
+        # .3 recursively traversing each input
+        cache.add(node)
+        in_graph.add(node)
+        sub_in_graph, sub_in_ends = walk_graph(node.inputs, endpoints, cache)
+        in_graph |= sub_in_graph
+        in_ends |= sub_in_ends
+    return in_graph, in_ends

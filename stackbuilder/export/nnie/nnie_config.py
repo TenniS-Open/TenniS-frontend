@@ -25,6 +25,14 @@ class Config(object):
         self.__norm_type = []
         self.__mean_file = []
 
+        self.__supported_options = ["is_simulation",
+                                    "compress_mode",
+                                    "log_level",
+                                    "compile_mode",
+                                    "sparse_rate",
+                                    "batch_num",
+                                    "internal_stride"]
+
     @property
     def prototxt_file(self):
         return self.__prototxt_file
@@ -293,4 +301,23 @@ class Config(object):
             if self.compress_mode is not None:
                 f.write("[compress_mode] {}\n".format(self.compress_mode))
             f.write("[internal_stride] {}\n".format(self.internal_stride))
+
+    def support(self, option):
+        # type: (str) -> bool
+        return option in self.__supported_options
+
+    def typo(self, option):
+        # type: (str) -> bool
+        import difflib
+        if len(self.__supported_options) == 0:
+            return option
+        options = self.__supported_options
+        fixed = options[0]
+        ratio = difflib.SequenceMatcher(None, option, fixed).ratio()
+        for i in range(1, len(options)):
+            this_ratio = difflib.SequenceMatcher(None, options[i], fixed).ratio()
+            if this_ratio > ratio:
+                fixed = options[i]
+                ratio = this_ratio
+        return fixed
 

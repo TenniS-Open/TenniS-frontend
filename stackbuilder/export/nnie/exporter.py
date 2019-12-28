@@ -229,14 +229,23 @@ class NNIEExporter(object):
     def __init__(self, nnie_version=None, host_device="cpu", host_device_id=0):
         self.__original_module = None   # update by load
         self.__input_shape = None       # update by load
-        self.__cmd = None   # path to cmd line
+        self.__nnie_mapper = None   # path to cmd line
         self.__cache = None # cache temp files
         self.__host_device = host_device
         self.__host_device_id = host_device_id
         if nnie_version is not None and nnie_version not in {"11", "12"}:
             raise ValueError("nnie version must be string 11 or 12")
         self.__nnie_version = nnie_version
+        self.__extra_configs = {}
         pass
+
+    @property
+    def nnie_mapper(self):
+        return self.__nnie_mapper
+
+    @nnie_mapper.setter
+    def nnie_mapper(self, value):
+        self.__nnie_mapper = value
 
     def load(self, module, input_shape=None):
         # type: (ts.Module, Union[List[Tuple[int]], Dict[str, Tuple[int]]]) -> None
@@ -247,6 +256,18 @@ class NNIEExporter(object):
         assert isinstance(module, ts.Module)
         self.__original_module = module
         self.__input_shape = input_shape
+        # check input shape must be valid
+        if input_shape is not None:
+            if isinstance(input_shape, (list, tuple)):
+                for shape in input_shape:
+                    for dim in shape[1:]:
+                        if dim <= 0:
+                            raise ValueError("Input shape must be definite, got {}".format(input_shape))
+            elif isinstance(input_shape, dict):
+                for shape in input_shape.values():
+                    for dim in shape[1:]:
+                        if dim <= 0:
+                            raise ValueError("Input shape must be definite, got {}".format(input_shape))
 
     def export_caffe(self, filename, subdir=None):
         # type: (str, str) -> None
@@ -318,8 +339,8 @@ class NNIEExporter(object):
             cfg.prototxt_file = os.path.join("model", "{}.{}.wk.prototxt".format(output_name, i))
             cfg.caffemodel_file = os.path.join("model", "{}.{}.wk.caffemodel".format(output_name, i))
             cfg.instruction_name = wk_instruction_name
-            cfg.batch_num = 0
-            cfg.log_level = 0
+            for k, v in self.__extra_configs.items():
+                setattr(cfg, k, v)
             for graph_input in graph.inputs:
                 iname = graph_input.name
                 image_list = os.path.relpath(map_name_image_list[iname], output_root)
@@ -368,11 +389,58 @@ class NNIEExporter(object):
         :param output_filename:
         :return:
         """
-        pass
+        input_root = os.path.split(os.path.abspath(input_filename))[0]
+        # output_root = os.path.split(os.path.abspath(output_filename))[0]
+        with open(input_filename, "rb") as f:
+            input_module = ts.Module.Load(f)
+        input_graph, _ = ts.graph.walk_graph(input_module.outputs)
+        for node in input_graph:
+            if node.op == "nnie":
+                wk_file = str(node.get("wk_file"))
+                abs_wk_file = os.path.join(input_root, wk_file)
+                if not os.path.isfile(abs_wk_file):
+                    raise FileNotFoundError("File {} not found in {}".format(wk_file, input_filename))
+                # merge file in wk_file
+                with open(abs_wk_file, "rb") as f:
+                    wk_buffer = f.read()
+                # buffer to tensor
+                dtype_numpy = numpy.dtype(numpy.uint8)
+                dtype_numpy = dtype_numpy.newbyteorder('<')
+                tensor = numpy.frombuffer(wk_buffer, dtype=dtype_numpy)
+                tensor = numpy.resize(tensor, [-1])
+                node.set("wk_buffer", tensor)
 
-    def export_wk(self, calibrator):
-        # type: (Calibrator) -> None
-        pass
+        output_module = input_module
+        with open(output_filename, "wb") as f:
+            ts.Module.Save(f, output_module)
 
+    def export_tsm_with_wk(self, output_filename, calibrator, tmp_filename=None):
+        # type: (str, Calibrator, str) -> None
 
+        import subprocess
+        if tmp_filename is None:
+            tmp_filename = output_filename
+        if self.nnie_mapper is None:
+            raise ValueError("nnie_mapper must be set")
+        wk_configs = self.export_nnie_cfg(tmp_filename, calibrator)
 
+        for i, cfg in enumerate(wk_configs):
+            print("[INFO]: Processing [{}/{}] nnie_mapper {}".format(i + 1, len(wk_configs), cfg))
+            shell_cwd = os.path.split(os.path.abspath(cfg))[0]
+            ret = subprocess.call("{} {}".format(self.nnie_mapper, cfg), shell=True, cwd=shell_cwd)
+            if ret != 0:
+                print("[ERROR]: Process failed with ret={}. Command: nnie_mapper {}".format(ret, cfg))
+                exit(ret)
+
+        print("[INFO]: Process {} wk config(s) done.".format(len(wk_configs)))
+        self.FuseNNIE(tmp_filename, output_filename)
+        print("[INFO]: Writen file: {}".format(output_filename))
+
+    def config(self, **kwargs):
+        cfg = nnie_config.Config()
+        for k, v, in kwargs.items():
+            if not cfg.support(k):
+                raise ValueError("Option \"{}\" not supported. Did you mean: \"{}\"?".format(k, cfg.typo(k)))
+            setattr(cfg, k, v)
+        import copy
+        self.__extra_configs = copy.copy(kwargs)
