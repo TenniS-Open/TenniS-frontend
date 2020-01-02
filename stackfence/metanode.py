@@ -85,14 +85,14 @@ class HasShape(MetaRule):
     def __init__(self, *shape):
         # type: (List[int]) -> None
         if len(shape) == 1:
-            if not isinstance(shape[0], int):
+            if not isinstance(shape[0], (int, type(None))):
                 shape = shape[0]
         if not isinstance(shape, (list, tuple)):
             raise ValueError("shape must be list of Int")
         for dim in shape:
-            if not isinstance(dim, int):
+            if not isinstance(dim, (int, type(None))):
                 raise ValueError("shape must be list of Int")
-        shape = tuple(shape)
+        shape = tuple([s if s is not None else Ignore() for s in shape])
         super(HasShape, self).__init__(lambda x: self.GetShape(x) == shape,
                                        "shape{}".format(shape))
 
