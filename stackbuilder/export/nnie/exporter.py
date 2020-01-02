@@ -114,7 +114,7 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
     S = len(output_names)
 
     def process_show():
-        sys.stdout.write("\r[{:.2g}/{}/{}]   ".format(float(P[0]) / S, P[1], P[2]))
+        sys.stdout.write("\r[{:.2f}/{}/{}]   ".format(float(P[0]) / S, P[1], P[2]))
         sys.stdout.flush()
 
     process_show()
@@ -428,7 +428,7 @@ class NNIEExporter(object):
         with open(output_filename, "wb") as f:
             ts.Module.Save(f, output_module)
 
-    def export_tsm_with_wk(self, output_filename, calibrator, tmp_filename=None):
+    def export_tsm_with_wk(self, output_filename, calibrator, tmp_filename=None, fuse_wk=True):
         # type: (str, Calibrator, str) -> None
 
         import subprocess
@@ -447,7 +447,8 @@ class NNIEExporter(object):
                 exit(ret)
 
         print("[INFO]: Process {} wk config(s) done.".format(len(wk_configs)))
-        self.FuseNNIE(tmp_filename, output_filename)
+        if fuse_wk:
+            self.FuseNNIE(tmp_filename, output_filename)
         print("[INFO]: Writen file: {}".format(output_filename))
 
     def config(self, **kwargs):
