@@ -421,7 +421,7 @@ class NNIEExporter(object):
                 dtype_numpy = numpy.dtype(numpy.uint8)
                 dtype_numpy = dtype_numpy.newbyteorder('<')
                 tensor = numpy.frombuffer(wk_buffer, dtype=dtype_numpy)
-                tensor = numpy.resize(tensor, [-1])
+                tensor = numpy.reshape(tensor, [-1])
                 node.set("wk_buffer", tensor)
 
         output_module = input_module
