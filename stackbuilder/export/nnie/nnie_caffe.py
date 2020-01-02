@@ -564,6 +564,8 @@ def convert_conv2d(node, cache):
         update_blob(blobs.add(), B)
 
         param.bias_term = True
+    else:
+        param.bias_term = False
 
     return cn
 
@@ -782,6 +784,8 @@ def convert_inner_prod(node, cache):
         update_blob(blobs.add(), B)
 
         param.bias_term = True
+    else:
+        param.bias_term = False
 
     return cn
 
@@ -909,6 +913,8 @@ def convert_depthwise_conv2d(node, cache):
         update_blob(blobs.add(), B)
 
         param.bias_term = True
+    else:
+        param.bias_term = False
 
     return cn
 
