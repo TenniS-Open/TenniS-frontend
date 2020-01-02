@@ -83,7 +83,7 @@ class HasShape(MetaRule):
                                 "[int, float, list, tuple, numpy.ndarray, basestring, ts.tensor.StringTensor]")
 
     def __init__(self, *shape):
-        # type: (List[int]) -> None
+        # type: (List[Union[int, None]]) -> None
         if len(shape) == 1:
             if not isinstance(shape[0], (int, type(None))):
                 shape = shape[0]
