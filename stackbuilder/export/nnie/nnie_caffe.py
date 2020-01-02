@@ -658,9 +658,9 @@ def convert_pooling2d(node, cache):
         param.pad_w = padding[1, 0]
 
     if type == 0:
-        param.pool = 0
+        param.pool = 0  # MAX
     elif type == 1:
-        param.pool = 1
+        param.pool = 1  # AVG
     else:
         raise ValueError("pooling2d not supported pooling type: {}".format(type))
 
