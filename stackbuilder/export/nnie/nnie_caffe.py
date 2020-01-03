@@ -313,9 +313,13 @@ def _build_layers_setup_bottom_top(outputs, inputs):
 
     for n in layers[::-1]:
         if isinstance(n, CaffeNode):
+            name = map_node_top_name[n]
+            if name[-7:] == "_report":     # do not in-place output layer
+                continue
             if str(n.proto.type) in {"ELU", "Exp", "Log", "Power", "PReLU", "ReLU", "Sigmoid", "TanH", "RReLU"}:
                 if n.bottoms[0] not in inputs and bottom_used_count[n.bottoms[0]] == 1:
-                    if n.bottoms[0] not in outputs:     # do not change output node name
+                    bottom_name = map_node_top_name[n.bottoms[0]]
+                    if bottom_name[-7:] != "_report":     # do not change output node name
                         map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
 
     for n in layers:
