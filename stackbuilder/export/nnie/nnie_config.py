@@ -285,7 +285,7 @@ class Config(object):
                 norm_type = self.norm_type[i] if i < len(self.norm_type) else 0
                 mean_file = self.mean_file[i] if i < len(self.mean_file) else None
                 if mean_file is None:
-                    mean_file = "null"
+                    mean_file = "ignore"
                 f.write("[image_type] {}\n".format(image_type))
                 f.write("[image_list] {}\n".format(image_list))
                 f.write("[norm_type] {}\n".format(norm_type))

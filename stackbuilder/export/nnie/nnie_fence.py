@@ -54,6 +54,40 @@ def fuse_flatten_ip_reshape(node):
     return caffe_inner_prod
 
 
+def fuse_softmax(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    name = node.name
+    exp = node.inputs[0]
+    reduce_sum = node.inputs[1]
+    x = exp.inputs[0]
+    assert isinstance(reduce_sum, ts.Node)
+
+    dims = reduce_sum.get("dims")
+    keep_dims = reduce_sum.try_get("keep_dims", True)
+
+    if not keep_dims:
+        return None
+
+    dims = numpy.asarray(dims).reshape([-1])
+    if len(dims) > 1:
+        return None
+
+    dim = dims[0]
+
+    softmax = ts.zoo.softmax(name=name, x=x, dim=dim, smooth=False)
+    if node.has("#shape"):
+        softmax.shape = node.shape
+    if node.has("#dtype"):
+        softmax.dtype = node.dtype
+
+    return softmax
+
+
+def convert_reshape_v2_to_v1(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    raise NotImplementedError
+
+
 def get_fence():
     # type: () -> Fence
     fence = Fence()
@@ -73,6 +107,19 @@ def get_fence():
         ({"#op": "inner_prod"}, [-1, ABS(0)]),
         ({"#op": "_reshape"}, -1,),
     ]), fuse_flatten_ip_reshape)
+
+    fence.register(MetaGraph([
+        MetaNode(),
+        ({"#op": "exp"}, -1),
+        ({"#op": "reduce_sum"}, -1),
+        ({"#op": "div"}, (-2, -1)),
+    ]), fuse_softmax)
+
+    # fence.register(MetaNode({
+    #         "#op": "_reshape_v2",
+    #         "#shape": HasSet,
+    #         "#dtype": NE(0),
+    #     }), convert_reshape_v2_to_v1)
 
     return fence
 

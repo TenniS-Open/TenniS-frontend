@@ -920,3 +920,22 @@ def convert_depthwise_conv2d(node, cache):
 
 
 register_node_converter("depthwise_conv2d", convert_depthwise_conv2d)
+
+
+def convert_softmax(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Softmax", node.name, [x])
+    param = cn.proto.softmax_param
+    blobs = cn.proto.blobs
+
+    dim = int(node.get("dim"))
+    if dim < 0:
+        dim += 4
+
+    param.axis = dim
+
+    return cn
+
+
+register_node_converter("softmax", convert_softmax)

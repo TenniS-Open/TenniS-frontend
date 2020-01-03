@@ -89,4 +89,9 @@ def get_spliter():
         "permute": EQ([0, 2, 3, 1])
     }))
     gs.support(lambda x: x.op[:6] == "caffe:")
+    gs.support(MetaNode({
+        "#op": "softmax",
+        "dim": GE(-3) & LE(3) & NE(0),
+        "#shape": HasShape(4)
+    }))
     return gs
