@@ -112,6 +112,8 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
 
     P = [0, 0, calibrator.number()]
     S = len(output_names)
+    if S == 0:
+        S = 1
 
     def process_show():
         sys.stdout.write("\r[{:.2f}/{}/{}]   ".format(float(P[0]) / S, P[1], P[2]))
