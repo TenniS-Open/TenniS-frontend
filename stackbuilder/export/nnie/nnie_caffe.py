@@ -289,6 +289,20 @@ def _build_layers_setup_bottom_top(outputs, inputs):
     for n in nodes:
         do_map_node_top_name(n)
 
+    # rename report and cpu tailed blob name
+    for k in map_node_top_name.keys():
+        v = map_node_top_name[k]
+        if v[-4:] == "_cpu":
+            map_node_top_name[k] = new_name(v + "_hide")
+        if v[-7:] == "_report" and k not in outputs:
+            map_node_top_name[k] = new_name(v + "_hide")
+
+    # set output name by add report
+    for k in outputs:
+        v = map_node_top_name[k]
+        if v[-7:] != "_report":
+            map_node_top_name[k] = new_name(v + "_report")
+
     bottom_used_count = {}
     for n in layers:
         for bottom in n.bottoms:
@@ -301,7 +315,8 @@ def _build_layers_setup_bottom_top(outputs, inputs):
         if isinstance(n, CaffeNode):
             if str(n.proto.type) in {"ELU", "Exp", "Log", "Power", "PReLU", "ReLU", "Sigmoid", "TanH", "RReLU"}:
                 if n.bottoms[0] not in inputs and bottom_used_count[n.bottoms[0]] == 1:
-                    map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
+                    if n.bottoms[0] not in outputs:     # do not change output node name
+                        map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
 
     for n in layers:
         bottom_names = []
@@ -332,6 +347,14 @@ def _build_layers_setup_bottom_top(outputs, inputs):
 
 def convert(outputs, inputs, prototxt, caffemodel):
     # type: (List[ts.Node], List[ts.Node], str, str) -> None
+    """
+    outputs must be sorted, bottom output must be list first, no check for this
+    :param outputs:
+    :param inputs:
+    :param prototxt:
+    :param caffemodel:
+    :return:
+    """
     _, net_name = os.path.split(prototxt)
     # 1. zip graph, convert each nodes
     cache = {}

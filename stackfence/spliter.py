@@ -595,6 +595,19 @@ class GraphSpliter(object):
         if len(graph_outputs) > 1:
             graph_outputs.sort(key=lambda x: recoder[x], reverse=True)
 
+        # sort outputs, ensure bottom node first
+        sorted_graph_outputs = []
+        while len(graph_outputs) > 0:
+            i = 0
+            n = graph_outputs[i]
+            for j in range(1, len(graph_outputs)):
+                if ref.ref(n, graph_outputs[j]):
+                    i = j
+                    n = graph_outputs[i]
+            sorted_graph_outputs.append(n)
+            del graph_outputs[i]
+        graph_outputs = sorted_graph_outputs
+
         return graph_outputs, graph_inputs
 
     def _count(self, iter, func):
