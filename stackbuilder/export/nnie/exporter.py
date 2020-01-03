@@ -110,6 +110,9 @@ def export_image_list(module, output_names, calibrator, main, output_root, cache
         filename = map_name_filenames[name]
         map_name_file_stream[name] = open(filename, "w")
 
+    if calibrator.number() == 0:
+        raise Exception("calibrator.number() must great than 0")
+
     P = [0, 0, calibrator.number()]
     S = len(output_names)
     if S == 0:
