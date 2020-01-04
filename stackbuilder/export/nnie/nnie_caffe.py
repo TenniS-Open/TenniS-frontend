@@ -872,7 +872,7 @@ def convert_transpose(node, cache):
 register_node_converter("_transpose", convert_transpose)
 
 
-def convert_depthwise_conv2d(node, cache):
+def convert_depthwise_conv2d_group(node, cache):
     # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
     x = convert2caffenode(node.inputs[0], cache)
     cn = CaffeNode("Convolution", node.name, [x])
@@ -945,6 +945,90 @@ def convert_depthwise_conv2d(node, cache):
         param.bias_term = False
 
     return cn
+
+
+def convert_depthwise_conv2d_nnie(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("DepthwiseConv", node.name, [x])
+    param = cn.proto.convolution_param
+    blobs = cn.proto.blobs
+
+    format = str(node.get("format"))
+    assert format == "NCHW"
+
+    W = node.inputs[1].get("value")
+
+    number_filters = W.shape[0]
+    input_channels = W.shape[1]
+    output_channels = number_filters * input_channels
+
+    W = numpy.transpose(W, (1, 0, 2, 3))    # change number filter to dim 1
+    W = numpy.reshape(W, [output_channels, 1, W.shape[2], W.shape[3]])
+
+    update_blob(blobs.add(), W)
+
+    param.num_output = output_channels
+    # param.group = input_channels  # no group parameter for depthwise
+
+    padding = numpy.asarray(node.get("padding")).reshape([-1, 2])[-2:]
+    stride = numpy.asarray(node.get("stride")).reshape([-1])[-2:]
+    dilation = numpy.asarray(node.get("dilation")).reshape([-1])[-2:]
+    kernel_size = W.shape[-2:]
+    input_size = list(node.inputs[0].shape)[-2:]
+
+    pad_h = conv2d_same_padding(input_size[0], padding[0], dilation[0], kernel_size[0], stride[0])
+    pad_w = conv2d_same_padding(input_size[1], padding[1], dilation[1], kernel_size[1], stride[1])
+
+    if pad_h[0] != padding[0, 0] or pad_w[0] != padding[1, 0]:
+        print("[WARNING]: Layer {}:{} change padding [{}, {}] => [{}, {}]".format(
+            node.op, node.name, padding[0], padding[1], pad_h, pad_w
+        ))
+
+    padding[0, :] = pad_h
+    padding[1, :] = pad_w
+
+    if kernel_size[0] == kernel_size[1]:
+        param.kernel_size.extend(kernel_size[-1:])
+    else:
+        param.kernel_size.extend(kernel_size[-2:])
+
+    if dilation[0] == dilation[1]:
+        param.dilation.extend(dilation[-1:])
+    else:
+        param.dilation.extend(dilation[-2:])
+
+    if stride[0] == stride[1]:
+        param.stride.extend(stride[-1:])
+    else:
+        param.stride.extend(stride[-2:])
+
+    assert padding[0, 0] == padding[0, 1]
+    assert padding[1, 0] == padding[1, 1]
+
+    if padding[0, 0] == padding[1, 0]:
+        param.pad.extend([padding[0, 0]])
+    else:
+        param.pad.extend([padding[0, 0], padding[1, 0]])
+
+    if len(node.inputs) > 2:
+        B = node.inputs[2].get("value")
+        update_blob(blobs.add(), B)
+
+        param.bias_term = True
+    else:
+        param.bias_term = False
+
+    return cn
+
+
+def convert_depthwise_conv2d(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    W = node.inputs[1].get("value")
+    number_filters = W.shape[0]
+    if number_filters > 1:
+        return convert_depthwise_conv2d_group(node, cache)
+    return convert_depthwise_conv2d_nnie(node, cache)
 
 
 register_node_converter("depthwise_conv2d", convert_depthwise_conv2d)
