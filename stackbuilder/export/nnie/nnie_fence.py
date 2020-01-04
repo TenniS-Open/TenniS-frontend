@@ -115,6 +115,139 @@ def convert_reshape_v2_to_v1(node):
     return reshape
 
 
+def convert_reshape_flatten(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    name = node.name
+    x = node.inputs[0]
+    reshape = node
+
+    shape = list(reshape.get("shape"))
+
+    if len(shape) != 2:
+        return None
+
+    x_shape = list(x.shape)
+
+    if len(x_shape) < 2:
+        return None
+
+    if shape[0] != 0 and x_shape[0] != shape[0]:
+        return None
+
+    if shape[1] >= 0:
+        return None
+
+    flatten = ts.zoo.flatten(name, x)
+    if node.has("#shape"):
+        flatten.shape = node.shape
+    if node.has("#dtype"):
+        flatten.dtype = node.dtype
+
+    return flatten
+
+
+def convert_flatten_concat(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    name = node.name
+
+    is_4d = MetaNode({"#shape": HasShape(4)})
+
+    concat = node
+    flatten_x = concat.inputs
+    for n in flatten_x:
+        if n.op != "flatten":
+            return None
+    x = [n.inputs[0] for n in flatten_x]
+    for n in x:
+        if not is_4d(n):
+            return None
+
+    concat_4d_name = name + "_4d_concat"
+
+    # convert sub graph to reshape([0, -1, 1, 1]), concat, flatten
+    reshape_x = []
+    for i, n in enumerate(x):
+        reshape_x.append(ts.zoo.reshape(name="%s_%d" % (concat_4d_name, i), x=n, shape=[0, -1, 1, 1]))
+
+    concat_4d = ts.zoo.concat(concat_4d_name, reshape_x, dim=1)
+
+    flatten_concat_4d = ts.zoo.flatten(name, concat_4d)
+
+    # update each shape
+    if node.has("#dtype"):
+        dtype = node.dtype
+        for n in reshape_x:
+            n.dtype = dtype
+        concat_4d.dtype = dtype
+        flatten_concat_4d.dtype = dtype
+
+    flatten_concat_4d.shape = node.shape
+    concat_4d.shape = numpy.concatenate([node.shape, [1, 1]])
+    for i, rx in enumerate(reshape_x):
+        rx.shape = numpy.concatenate([flatten_x[i].shape, [1, 1]])
+
+    return flatten_concat_4d
+
+
+def convert_flatten_gemm_to_inner_prod(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    name = node.name
+
+    gemm = node
+    flatten = gemm.inputs[0]
+    x = flatten.inputs[0]
+    W = gemm.inputs[1]
+    B = gemm.inputs[2]
+
+    M, N = tuple(gemm.shape)
+
+    alpha = float(gemm.get("alpha"))
+    beta = float(gemm.get("beta"))
+    transA = bool(gemm.get("transA"))
+    transB = bool(gemm.get("transB"))
+
+    if abs(alpha - 1) > 1e-6:
+        return None
+
+    if transA:
+        return None
+
+    if abs(beta) > 1e-6:
+        B_value = numpy.asarray(B.get("value"))
+        if B_value.shape == (N, ):
+            pass
+        elif B_value.shape == (1, ) or B_value.shape == ():
+            tmp = float(B_value)
+            B_value = numpy.zeros((N, ), dtype=numpy.float32)
+            B_value[:] = tmp
+            B = ts.menu.data(name=B.name + "_broadcast", value=B_value)
+        else:
+            return None
+    else:
+        B = None
+
+    inner_prod_name = name + "_ip"
+    transpose = transB
+    if B is None:
+        inner_prod = ts.menu.op(name=inner_prod_name, op_name="caffe:inner_prod", inputs=[x, W])
+    else:
+        inner_prod = ts.menu.op(name=inner_prod_name, op_name="caffe:inner_prod", inputs=[x, W, B])
+    inner_prod.set("transpose", transpose, numpy.bool)
+
+    flatten_inner_prod = ts.zoo.flatten(name, inner_prod)
+
+    # update each shape
+    if node.has("#dtype"):
+        dtype = node.dtype
+        flatten_inner_prod.dtype = dtype
+        inner_prod.dtype = dtype
+
+    inner_prod.shape = numpy.concatenate([gemm.shape, [1, 1]])
+    flatten_inner_prod.shape = node.shape
+
+    return flatten_inner_prod
+
+
 def get_fence():
     # type: () -> Fence
     fence = Fence()
@@ -147,6 +280,24 @@ def get_fence():
             "#shape": HasSet,
             "#dtype": NE(0),
         }), convert_reshape_v2_to_v1)
+
+    fence.register(MetaGraph([
+        {"#shape": HasSet},
+        ("_reshape", -1)
+    ]), convert_reshape_flatten)
+
+    fence.register(MetaGraph([
+        {"#op": "concat",
+         "dim": EQ(1) | EQ(-3)},
+    ]), convert_flatten_concat)
+
+    fence.register(MetaGraph([
+        ts.Node.Const,
+        ts.Node.Const,
+        {"#shape": HasShape(4)},
+        ({"#op": "flatten"}, -1),
+        ({"#op": "gemm"}, [-1, ABS(0), ABS(1)]),
+    ]), convert_flatten_gemm_to_inner_prod)
 
     return fence
 

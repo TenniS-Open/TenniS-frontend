@@ -966,3 +966,21 @@ def convert_softmax(node, cache):
 
 
 register_node_converter("softmax", convert_softmax)
+
+
+def convert_reshape(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Reshape", node.name, [x])
+    param = cn.proto.reshape_param
+    blobs = cn.proto.blobs
+
+    shape = list(node.get("shape"))
+    assert len(shape) == 4
+
+    update_blob_shape(param.shape, shape)
+
+    return cn
+
+
+register_node_converter("_reshape", convert_reshape)
