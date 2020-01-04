@@ -2,6 +2,9 @@ from typing import CallableMeta, Union, List, Dict, Set, Tuple
 
 import tensorstack as ts
 
+from .spliter import TopFirstQueue
+from .spliter import RefCache
+
 
 class PriorityList(object):
     def __init__(self, index=None):
@@ -86,12 +89,54 @@ class Fence(object):
             in_ends |= sub_in_ends
         return in_graph, in_ends
 
+    def _walk_graph_native(self, node, graph):
+        # type: (ts.Node, Set[ts.Node]) -> Tuple[Set[ts.Node], Set[ts.Node]]
+        """
+        get all nodes, no outer link
+        :param node:
+        :param graph:
+        :return: tuple of in graph nodes and graph input nodes
+        """
+        in_graph = {node}
+        out_graph = set()
+
+        walking = TopFirstQueue(RefCache([node]))
+        walking.extend(node.inputs)
+
+        walked = {node}
+        while not walking.empty():
+            n = walking.pop()
+            if n in walked:
+                continue
+            walked.add(n)
+            # notice, dealing n must be in graph, n in graph is true
+            assert n in graph
+            # parameter can not be in graph
+            if n.op == ts.Node.Parameter:
+                out_graph.add(n)
+                continue
+            contain_in_graph = True
+            for o in n.outputs:
+                if o not in graph:
+                    continue
+                if o not in in_graph:
+                    contain_in_graph = False
+                    break
+            if contain_in_graph:
+                in_graph.add(node)
+                walking.extend(node.inputs)
+            else:
+                out_graph.add(n)
+
+        return in_graph, out_graph
+
     def _can_update2(self, node, cvt_node, graph, update=True):
         # type: (ts.Node, ts.Node, Set[ts.Node], bool) -> bool
         # Check if updated graph including middle graph output.
         # If updated graph has middle output, than do not updated
         cvt_graph, cvt_graph_inputs = self._walk_graph(cvt_node, graph)
-        origin_graph, origin_graph_inputs = self._walk_graph(node, cvt_graph_inputs)
+        # change to native walk method, make sure later outer link check must be passed
+        origin_graph, origin_graph_inputs = self._walk_graph_native(node, graph)
         # outer link check
         for n in graph:
             if n in origin_graph:

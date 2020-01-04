@@ -85,7 +85,34 @@ def fuse_softmax(node):
 
 def convert_reshape_v2_to_v1(node):
     # type: (ts.Node) -> Optional[ts.Node]
-    raise NotImplementedError
+    name = node.name
+    reshape_v2 = node
+    x = reshape_v2.inputs[0]
+    shape = reshape_v2.inputs[1]
+    assert isinstance(shape, ts.Node)
+
+    if shape.op == ts.Node.Const:
+        shape = shape.get("value")
+    elif shape.has("#value"):
+        shape = shape.get("#value")
+    else:
+        return None
+
+    neg_count = 0
+    for i in shape:
+        if i < 0:
+            neg_count += 1
+
+    if neg_count > 1:
+        return None
+
+    reshape = ts.zoo.reshape(name, x, shape)
+    if node.has("#shape"):
+        reshape.shape = node.shape
+    if node.has("#dtype"):
+        reshape.dtype = node.dtype
+
+    return reshape
 
 
 def get_fence():
@@ -115,11 +142,11 @@ def get_fence():
         ({"#op": "div"}, (-2, -1)),
     ]), fuse_softmax)
 
-    # fence.register(MetaNode({
-    #         "#op": "_reshape_v2",
-    #         "#shape": HasSet,
-    #         "#dtype": NE(0),
-    #     }), convert_reshape_v2_to_v1)
+    fence.register(MetaNode({
+            "#op": "_reshape_v2",
+            "#shape": HasSet,
+            "#dtype": NE(0),
+        }), convert_reshape_v2_to_v1)
 
     return fence
 

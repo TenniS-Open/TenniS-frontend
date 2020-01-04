@@ -286,11 +286,11 @@ class NNIEExporter(object):
                         if dim <= 0:
                             raise ValueError("Input shape must be definite, got {}".format(input_shape))
 
-    def export_caffe(self, filename, subdir=None):
-        # type: (str, str) -> None
+    def export_caffe(self, filename, subdir=None, export_main=False):
+        # type: (str, str, bool) -> None
         if self.__original_module is None:
             raise ValueError("call load fist be before export_caffe")
-        split_caffe(self.__original_module, filename, subdir, self.__input_shape)
+        split_caffe(self.__original_module, filename, subdir, self.__input_shape, export_main=export_main)
 
     def _split_root_name_ext(self, filename):
         # type: (str) -> Tuple[str, str, str]
