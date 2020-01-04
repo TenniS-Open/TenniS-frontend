@@ -297,12 +297,6 @@ def _build_layers_setup_bottom_top(outputs, inputs):
         if v[-7:] == "_report" and k not in outputs:
             map_node_top_name[k] = new_name(v + "_hide")
 
-    # set output name by add report
-    for k in outputs:
-        v = map_node_top_name[k]
-        if v[-7:] != "_report":
-            map_node_top_name[k] = new_name(v + "_report")
-
     bottom_used_count = {}
     for n in layers:
         for bottom in n.bottoms:
@@ -313,14 +307,19 @@ def _build_layers_setup_bottom_top(outputs, inputs):
 
     for n in layers[::-1]:
         if isinstance(n, CaffeNode):
-            name = map_node_top_name[n]
-            if name[-7:] == "_report":     # do not in-place output layer
+            if n in outputs:    # do not in-place output layer
                 continue
             if str(n.proto.type) in {"ELU", "Exp", "Log", "Power", "PReLU", "ReLU", "Sigmoid", "TanH", "RReLU"}:
                 if n.bottoms[0] not in inputs and bottom_used_count[n.bottoms[0]] == 1:
-                    bottom_name = map_node_top_name[n.bottoms[0]]
-                    if bottom_name[-7:] != "_report":     # do not change output node name
+                    if n.bottoms[0] not in outputs:     # do not change output node name
                         map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
+
+    # set output name by add report
+    map_marked_names = {}
+    for k in outputs:
+        v = map_node_top_name[k]
+        if v[-7:] != "_report":
+            map_marked_names[v] = new_name(v + "_report")
 
     for n in layers:
         bottom_names = []
@@ -344,6 +343,8 @@ def _build_layers_setup_bottom_top(outputs, inputs):
         for b in bottom_names:
             n.proto.bottom.append(b)
         for t in top_names:
+            if t in map_marked_names:
+                t = map_marked_names[t]
             n.proto.top.append(t)
 
     return layers
