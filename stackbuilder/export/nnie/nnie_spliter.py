@@ -73,7 +73,7 @@ def get_spliter():
     gs.support("relu")
     # gs.route("flatten")
     gs.support("inner_prod")
-    gs.route(MetaNode("_reshape", shape=HasShape(4)))
+    gs.route(MetaNode("_reshape", shape=HasShape(4) & (EQ([0, None, None, None]) | EQ([1, None, None, None]))))
     gs.support(MetaGraph([
         {"#op": "concat",
          "dim": GE(-3) & LE(3) & NE(0),

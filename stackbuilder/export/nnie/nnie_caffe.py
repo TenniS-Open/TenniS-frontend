@@ -1101,6 +1101,10 @@ def convert_reshape(node, cache):
     shape = list(node.get("shape"))
     assert len(shape) == 4
 
+    assert shape[0] == 0 or shape[0] == 1
+
+    shape[0] = 0    # do not reshape N
+
     update_blob_shape(param.shape, shape)
 
     return cn
