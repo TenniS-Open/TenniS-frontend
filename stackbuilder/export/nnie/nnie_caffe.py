@@ -63,6 +63,39 @@ def change_sub_neg(node):
     return ts.menu.op(node.name, "neg", [x])
 
 
+def change_relu6_x4(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    x = node.inputs[0]
+    name = node.name
+
+    channels = node.shape[1]
+    max = float(node.get("max"))
+
+    # change relu6 to x - (x - 6) * thresh(x, 6)
+    relu = ts.zoo.relu(name + "_relu_", x)
+    bias = ts.zoo.add_bias(name + "_bias_", relu, b=[-max, ] * channels, dim=1)
+    thresh = ts.menu.op(name + "_thresh_", "threshold", [relu])
+    thresh.set("threshold", max, numpy.float32)
+    bias_x_thresh = ts.zoo.mul(name + "_bias_x_thresh", bias, thresh)
+    relu6_x4 = ts.zoo.sub(name, relu, bias_x_thresh)
+
+    if node.has("#dtype"):
+        dtype = node.dtype
+        relu.dtype = dtype
+        bias.dtype = dtype
+        thresh.dtype = dtype
+        bias_x_thresh.dtype = dtype
+        relu6_x4.dtype = dtype
+
+    relu.shape = node.shape
+    bias.shape = node.shape
+    thresh.shape = node.shape
+    bias_x_thresh.shape = node.shape
+    relu6_x4.shape = node.shape
+
+    return relu6_x4
+
+
 def _get_caffe_fence():
     fence = Fence()
     fence.register(MetaGraph([
@@ -89,6 +122,9 @@ def _get_caffe_fence():
         {"#op": ts.Node.Const, "value": EQ(0)},
         ({"#op": "sub", "#shape": HasShape(4)}, {0: -1})
     ]), change_sub_neg)
+    fence.register(MetaNode(
+        "relu_max"
+    ), change_relu6_x4)
     return fence
 
 
@@ -361,6 +397,7 @@ def convert(outputs, inputs, prototxt, caffemodel):
     :return:
     """
     _, net_name = os.path.split(prototxt)
+    print("[INFO]: --[== Translate network...")
     # 1. zip graph, convert each nodes
     cache = {}
     outputs = _get_caffe_fence().convert(outputs, cache)
@@ -368,12 +405,13 @@ def convert(outputs, inputs, prototxt, caffemodel):
     # 2. write each proto node
     # 2.1 special for inputs
 
+    print("[INFO]: --[== Convert network...")
     # 2.2 convert each nodes
-    # TODO: deal with copy with split
     cache = OrderedDict()
     caffe_inputs = [convert2caffenode(i, cache=cache) for i in inputs]
     caffe_outputs = [convert2caffenode(o, cache=cache) for o in outputs]
 
+    print("[INFO]: --[== Convert about {} layer(s). Start write files...".format(len(cache)))
     layers = _build_layers_setup_bottom_top(caffe_outputs, caffe_inputs)
 
     # 3. output
@@ -1069,3 +1107,64 @@ def convert_reshape(node, cache):
 
 
 register_node_converter("_reshape", convert_reshape)
+
+
+def convert_sub(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    y = convert2caffenode(node.inputs[1], cache)
+    cn = CaffeNode("Eltwise", node.name, [x, y])
+    param = cn.proto.eltwise_param
+    blobs = cn.proto.blobs
+
+    # 0-PROD, 1-SUM, 2-MAX
+    param.operation = 1
+    param.coeff.extend([1, -1])
+
+    return cn
+
+
+register_node_converter("sub", convert_sub)
+
+
+def convert_mul(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    y = convert2caffenode(node.inputs[1], cache)
+    cn = CaffeNode("Eltwise", node.name, [x, y])
+    param = cn.proto.eltwise_param
+    blobs = cn.proto.blobs
+
+    # 0-PROD, 1-SUM, 2-MAX
+    param.operation = 0
+
+    return cn
+
+
+register_node_converter("mul", convert_mul)
+
+
+def convert_threshold(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Threshold", node.name, [x])
+    param = cn.proto.threshold_param
+    blobs = cn.proto.blobs
+
+    param.threshold = float(node.get("threshold"))
+
+    return cn
+
+
+register_node_converter("threshold", convert_threshold)
+
+
+def convert_copy(node, cache):
+    # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
+    x = convert2caffenode(node.inputs[0], cache)
+    cn = CaffeNode("Split", node.name, [x])
+
+    return cn
+
+
+register_node_converter("_copy", convert_copy)

@@ -94,4 +94,10 @@ def get_spliter():
         "dim": GE(-3) & LE(3) & NE(0),
         "#shape": HasShape(4)
     }))
+    gs.support(MetaNode({
+        "#op": "relu_max",
+        "max": 6,
+        "#shape": GT([None, 0, 0, 0])
+    }))
+    gs.route("_copy")
     return gs

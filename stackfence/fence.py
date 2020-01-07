@@ -192,7 +192,13 @@ class Fence(object):
         for i in range(len(node.inputs)):
             # convert input, no need to return
             # no need to re-link node as that _convert_updated used
-            self._convert(node.inputs[i], graph, cache)
+            bottom = node.inputs[i]
+            if bottom not in cache:
+                self._convert(bottom, graph, cache)
+
+        if node in cache:
+            cvt_node = cache[node]
+            return cvt_node if cvt_node != node else None
 
         # 1. try convert node firstly
         cvt_node = self._convert_updated(node, graph, cache)
