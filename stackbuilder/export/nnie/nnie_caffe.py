@@ -431,6 +431,8 @@ def convert(outputs, inputs, prototxt, caffemodel):
     with open(prototxt, "w") as f:
         f.write(str(caffe_net))
 
+    print("[INFO]: --[== Write files done.".format(len(cache)))
+
     pass
 
 

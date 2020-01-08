@@ -100,4 +100,5 @@ def get_spliter():
         "#shape": GT([None, 0, 0, 0])
     }))
     gs.route("_copy")
+    gs.support(if_no_broadcast_reduce("mul"))
     return gs
