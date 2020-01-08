@@ -193,6 +193,12 @@ class CaffeNode(object):
         # type: () -> caffe.LayerParameter
         return self.__proto
 
+    @proto.setter
+    def proto(self, value):
+        # type: (caffe.LayerParameter) -> None
+        assert isinstance(value, caffe.LayerParameter)
+        self.__proto = value
+
     @property
     def bottoms(self):
         # type: () -> List[Union[CaffeNode, Top]]
@@ -411,9 +417,9 @@ def convert(outputs, inputs, prototxt, caffemodel):
     caffe_inputs = [convert2caffenode(i, cache=cache) for i in inputs]
     caffe_outputs = [convert2caffenode(o, cache=cache) for o in outputs]
 
-    print("[INFO]: --[== Convert about {} layer(s). Start write files...".format(len(cache)))
     layers = _build_layers_setup_bottom_top(caffe_outputs, caffe_inputs)
 
+    print("[INFO]: --[== Convert about {} layer(s). Start write files...".format(len(layers)))
     # 3. output
     # 3.1 build full net
     caffe_net = caffe.NetParameter()
@@ -820,6 +826,7 @@ def convert_relu(node, cache):
 
 
 register_node_converter("relu", convert_relu)
+# register_node_converter("relu_max", convert_relu)
 
 
 def convert_inner_prod(node, cache):
@@ -1168,9 +1175,15 @@ register_node_converter("threshold", convert_threshold)
 def convert_copy(node, cache):
     # type: (ts.Node, Dict[ts.Node, CaffeNode]) -> CaffeNode
     x = convert2caffenode(node.inputs[0], cache)
-    cn = CaffeNode("Split", node.name, [x])
 
-    return cn
+    if len(node.inputs[0].outputs) > 1:
+        return x
+    elif x.type == "Input":   # do not cover input layer
+        # use input layer directly, assume that no only split graph
+        return x
+    else:
+        x.name = node.name
+        return x
 
 
 register_node_converter("_copy", convert_copy)
