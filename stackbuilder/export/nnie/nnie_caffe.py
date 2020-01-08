@@ -351,7 +351,10 @@ def _build_layers_setup_bottom_top(outputs, inputs):
         if isinstance(n, CaffeNode):
             if n in outputs:    # do not in-place output layer
                 continue
-            if str(n.proto.type) in {"ELU", "Exp", "Log", "Power", "PReLU", "ReLU", "Sigmoid", "TanH", "RReLU"}:
+            # batchnorm，scale，bias，relu，sigmoid，tanh、prelu、absval
+            if str(n.proto.type) in {
+                "BatchNorm", "Scale", "Bias", "ReLU", "Sigmoid", "TanH", "PReLU", "AbsVal",
+                "ELU", "Exp", "Log", "Power", "RReLU"}:
                 if n.bottoms[0] not in inputs and bottom_used_count[n.bottoms[0]] == 1:
                     if n.bottoms[0] not in outputs:     # do not change output node name
                         map_node_top_name[n.bottoms[0]] = map_node_top_name[n]
