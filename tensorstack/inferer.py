@@ -1948,6 +1948,7 @@ def infer_slice_v3(node, inputs):
 
 
 _register_shape_inferer("slice_v3", infer_slice_v3)
+_register_shape_inferer("leaky_relu", infer_copy_0)
 
 
 if __name__ == "__main__":

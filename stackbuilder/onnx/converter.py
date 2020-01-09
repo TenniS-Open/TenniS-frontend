@@ -1622,3 +1622,31 @@ def convert_clip_layer(node, input_nodes, output_names):
 register_layer_converter("Clip", convert_clip_layer)
 
 
+def convert_leaky_relu_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    alpha = 0.01
+    if "alpha" in attr_dict:
+        alpha = attr_dict["alpha"]
+
+    ts_node = ts.zoo.leaky_relu(node_name, x=x, scale=alpha)
+
+    return ts_node,
+
+
+register_layer_converter("LeakyRelu", convert_leaky_relu_layer)
+
+

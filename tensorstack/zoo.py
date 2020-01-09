@@ -80,6 +80,7 @@ class Name(object):
         maximum = "maximum"
         exp = "exp"
         slice_v3 = "slice_v3"
+        leaky_relu = "leaky_relu"
 
     dim = "dim"
     shuffle = "shuffle"
@@ -1000,4 +1001,11 @@ def broadcast(name, x, shape):
     shape = to_node(shape, name=name + "_shape", device=device.CPU, dtype=numpy.int32)
     node = menu.op(name=name, op_name="broadcast", inputs=[x, shape])
 
+    return node
+
+
+def leaky_relu(name, x, scale):
+    assert isinstance(x, Node)
+    node = menu.op(name=name, op_name=Name.Layer.leaky_relu, inputs=[x, ])
+    node.set(Name.scale, scale, numpy.float32)
     return node
