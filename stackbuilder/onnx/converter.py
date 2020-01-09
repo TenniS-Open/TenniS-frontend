@@ -1641,6 +1641,7 @@ def convert_leaky_relu_layer(node, input_nodes, output_names):
     alpha = 0.01
     if "alpha" in attr_dict:
         alpha = attr_dict["alpha"]
+        print("--##    alpha: {}".format(alpha))
 
     ts_node = ts.zoo.leaky_relu(node_name, x=x, scale=alpha)
 
