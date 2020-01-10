@@ -605,7 +605,7 @@ def convert_shape_layer(node, input_nodes, output_names):
     x = input_nodes[0]
 
     ts_node = ts.zoo.shape("_int32_" + node_name, x=x)
-    ts_node = ts.zoo.cast(node_name, ts_node, dtype=ts.dtype.INT64);
+    ts_node = ts.zoo.cast(node_name, ts_node, dtype=ts.dtype.INT64)
 
     return ts_node,
 
@@ -1649,5 +1649,70 @@ def convert_leaky_relu_layer(node, input_nodes, output_names):
 
 
 register_layer_converter("LeakyRelu", convert_leaky_relu_layer)
+
+
+def convert_cast_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    to = attr_dict["to"]
+
+    dtype2dtype = {
+        onnx.TensorProto.UNDEFINED: ts.dtype.VOID,
+        # Basic types.
+        onnx.TensorProto.FLOAT: ts.dtype.FLOAT32,   # float
+        onnx.TensorProto.UINT8: ts.dtype.UINT8,   # uint8_t
+        onnx.TensorProto.INT8: ts.dtype.INT8,    # int8_t
+        onnx.TensorProto.UINT16: ts.dtype.UINT16,  # uint16_t
+        onnx.TensorProto.INT16: ts.dtype.INT16,   # int16_t
+        onnx.TensorProto.INT32: ts.dtype.INT32,   # int32_t
+        onnx.TensorProto.INT64: ts.dtype.INT64,   # int64_t
+        onnx.TensorProto.STRING: ts.dtype.VOID,  # string   # not support string cast
+        onnx.TensorProto.BOOL: ts.dtype.BOOLEAN,    # bool
+
+        # IEEE754 half-precision floating-point format (16 bits wide).
+        # This format has 1 sign bit, 5 exponent bits, and 10 mantissa bits.
+        onnx.TensorProto.FLOAT16: ts.dtype.FLOAT16,
+
+        onnx.TensorProto.DOUBLE: ts.dtype.FLOAT64,
+        onnx.TensorProto.UINT32: ts.dtype.UINT32,
+        onnx.TensorProto.UINT64: ts.dtype.UINT64,
+        onnx.TensorProto.COMPLEX64: ts.dtype.COMPLEX64,     # complex with float32 real and imaginary components
+        onnx.TensorProto.COMPLEX128: ts.dtype.COMPLEX128,    # complex with float64 real and imaginary components
+
+        # Non-IEEE floating-point format based on IEEE754 single-precision
+        # floating-point number truncated to 16 bits.
+        # This format has 1 sign bit, 8 exponent bits, and 7 mantissa bits.
+        onnx.TensorProto.BFLOAT16: ts.dtype.VOID,   # not support for now
+
+    }
+
+    if to not in dtype2dtype:
+        raise NotImplementedError("Unknown to={}".format(to))
+
+    dtype = dtype2dtype[to]
+
+    if dtype == ts.dtype.VOID:
+        raise NotImplementedError("Unsupported to={}".format(to))
+
+    ts_node = ts.zoo.cast(name=node_name, x=x, dtype=dtype)
+
+    return ts_node,
+
+
+register_layer_converter("Cast", convert_cast_layer)
+
 
 
