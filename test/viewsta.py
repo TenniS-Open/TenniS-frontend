@@ -7,7 +7,7 @@ import os
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from tensorstack import orz
+from tennis import orz
 import json
 
 

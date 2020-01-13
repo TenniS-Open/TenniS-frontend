@@ -5,8 +5,8 @@ import sys
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from stackbuilder.mxnet.converter import convert
-import tensorstack as ts
+from tennisbuilder.mxnet.converter import convert
+import tennis as ts
 
 
 def test():

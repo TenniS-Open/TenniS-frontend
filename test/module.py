@@ -5,10 +5,10 @@ import sys
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from tensorstack import Module
-from tensorstack import bubble
-from tensorstack import tensor
-from tensorstack import device
+from tennis import Module
+from tennis import bubble
+from tennis import tensor
+from tennis import device
 
 
 def test():

@@ -4,8 +4,8 @@
 author: chao.yang
 """
 
-from tensorstack.module import Module
-from tensorstack.node import Node
+from tennis.module import Module
+from tennis.node import Node
 
 def translate_node(node, ready_map, compute_device, options):
     if node in ready_map:

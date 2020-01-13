@@ -20,9 +20,9 @@ sys.path.append(
 RuntimeRoot = "D:/yang/workPro/tensorStack/TensorStack/lib/x64/Release"
 sys.path.append(RuntimeRoot)
 
-from tensorstack.module import Module as mo
-from tensorstack.node import Node
-from tensorstack.backend.api import *
+from tennis.module import Module as mo
+from tennis.node import Node
+from tennis.backend.api import *
 
 import quantize
 from translator import Translator

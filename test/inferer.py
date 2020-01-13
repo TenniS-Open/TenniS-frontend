@@ -6,7 +6,7 @@
 
 from typing import Union, List, Dict
 
-import tensorstack as ts
+import tennis as ts
 
 if __name__ == "__main__":
     model = "/home/kier/git/TensorStack/python/test/caffe.tsm"

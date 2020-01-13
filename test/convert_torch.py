@@ -5,8 +5,8 @@ import sys
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-# from stackbuilder.torch.converter import convert
-from stackbuilder.torch.converter import convert_by_onnx
+# from tennisbuilder.torch.converter import convert
+from tennisbuilder.torch.converter import convert_by_onnx
 
 
 def test():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import stackbuilder as sb
-import tensorstack as ts
+import tennisbuilder as sb
+import tennis as ts
 
 from models.faceboxes import FaceBoxes
 from models.faceboxes import CRelu

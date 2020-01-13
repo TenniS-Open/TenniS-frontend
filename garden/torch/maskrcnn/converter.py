@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import stackbuilder as sb
-import tensorstack as ts
+import tennisbuilder as sb
+import tennis as ts
 
 import os
 import sys
@@ -10,7 +10,7 @@ sys.path.append(
 
 import maskrcnn
 
-from stackbuilder.torch.module import convert_module as ts_convert_module
+from tennisbuilder.torch.module import convert_module as ts_convert_module
 
 from maskrcnn_benchmark.modeling.detector.generalized_rcnn import GeneralizedRCNN
 from maskrcnn_benchmark.modeling.backbone.resnet import ResNet

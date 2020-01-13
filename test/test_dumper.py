@@ -7,9 +7,9 @@ import os
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from stackbuilder.export.dumper import Dumper, Calibrator
-import tensorstack as ts
-from tensorstack.backend.api import *
+from tennisbuilder.export.dumper import Dumper, Calibrator
+import tennis as ts
+from tennis.backend.api import *
 
 from typing import List, Optional
 import numpy

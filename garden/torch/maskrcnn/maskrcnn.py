@@ -4,11 +4,11 @@
 Author: Kier
 """
 
-from tensorstack import Node
-from tensorstack import zoo
-from tensorstack import menu
-from tensorstack import device
-from tensorstack import tensor
+from tennis import Node
+from tennis import zoo
+from tennis import menu
+from tennis import device
+from tennis import tensor
 
 import numpy
 import math

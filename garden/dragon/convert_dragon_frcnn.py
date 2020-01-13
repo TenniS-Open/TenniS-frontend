@@ -5,8 +5,8 @@ import sys
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from stackbuilder.dragon.converter import convert
-from tensorstack.backend.api import *
+from tennisbuilder.dragon.converter import convert
+from tennis.backend.api import *
 import cv2
 import math
 

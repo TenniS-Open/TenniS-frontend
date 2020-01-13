@@ -1,4 +1,4 @@
-import tensorstack as ts
+import tennis as ts
 
 
 def test():

@@ -12,7 +12,7 @@ sys.path.append(
 RuntimeRoot = "/home/kier/git/TensorStack/lib/"
 sys.path.append(RuntimeRoot)
 
-from tensorstack.backend.api import *
+from tennis.backend.api import *
 
 import cv2
 import random

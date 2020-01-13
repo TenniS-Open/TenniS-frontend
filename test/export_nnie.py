@@ -5,14 +5,12 @@ import sys
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from stackbuilder.mxnet.converter import convert
-import tensorstack as ts
-from stackbuilder.export.dumper import Dumper, Calibrator
-from tensorstack.backend.api import *
+from tennisbuilder.export.dumper import Dumper, Calibrator
+from tennis.backend.api import *
 import cv2
 import numpy
 
-from stackbuilder.export.nnie.exporter import NNIEExporter
+from tennisbuilder.export.nnie.exporter import NNIEExporter
 
 
 class MyCalibrator(Calibrator):

@@ -7,7 +7,7 @@ author: chao.yang
 import numpy as np
 from scipy import stats
 import copy
-from tensorstack.node import Node
+from tennis.node import Node
 
 
 class QuantizNodeList:

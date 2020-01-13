@@ -5,8 +5,8 @@ import sys
 sys.path.append(
     os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
 
-from stackbuilder.tf.converter import convert
-import stackbuilder.tf.parser as parser
+from tennisbuilder.tf.converter import convert
+import tennisbuilder.tf.parser as parser
 
 import tensorflow as tf
 
