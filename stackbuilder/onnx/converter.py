@@ -1393,7 +1393,26 @@ def convert_upsample_layer(node, input_nodes, output_names):
     x = input_nodes[0]
     scales = input_nodes[1]
 
-    scales = ts.zoo.to_const(scales, "scales")
+    mode = attr_dict["mode"]
+    mode2type = {
+        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
+        "bilinear": ts.zoo.Type.resize2d_type.linear,
+    }
+    if mode not in mode2type:
+        raise NotImplementedError("mode={}".format(mode))
+    type = mode2type[mode]
+
+    try:
+        scales = ts.zoo.to_const(scales, "scales")
+    except:
+        # do common sample image
+        x_shape = ts.zoo.shape(name=x.name + "_shape", x=x)
+        float_x_shape = ts.zoo.cast(name=x.name + "_float_shape", x=x_shape, dtype=ts.dtype.FLOAT32)
+        scaled_size = ts.zoo.mul(name=x.name + "_scale_size", lhs=float_x_shape, rhs=scales)
+        int_scaled_size = ts.zoo.cast(name=x.name + "_int_size", x=scaled_size, dtype=dtype.ts.dtype.INT32)
+        return ts.zoo.resize2d(name=node_name, x=x, size=int_scaled_size, type=type)
+
+    # do static scale image
     scales = numpy.asarray(scales)
 
     if scales.shape != (4,):
@@ -1406,15 +1425,6 @@ def convert_upsample_layer(node, input_nodes, output_names):
         raise NotImplementedError("scales={}".format(scales))
 
     scale = scales[3]
-
-    mode = attr_dict["mode"]
-    mode2type = {
-        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
-        "bilinear": ts.zoo.Type.resize2d_type.linear,
-    }
-    if mode not in mode2type:
-        raise NotImplementedError("mode={}".format(mode))
-    type = mode2type[mode]
 
     ts_node = ts.zoo.sample2d(name=node_name, x=x, scale=scale, type=type)
 

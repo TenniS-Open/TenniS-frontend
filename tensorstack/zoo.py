@@ -81,6 +81,7 @@ class Name(object):
         exp = "exp"
         slice_v3 = "slice_v3"
         leaky_relu = "leaky_relu"
+        sample2d_v2 = "sample2d_v2"
 
     dim = "dim"
     shuffle = "shuffle"
@@ -1008,4 +1009,15 @@ def leaky_relu(name, x, scale):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name=Name.Layer.leaky_relu, inputs=[x, ])
     node.set(Name.scale, scale, numpy.float32)
+    return node
+
+
+def sample2d_v2(name, x, scale, type=Type.resize2d_type.hard):
+    assert isinstance(x, Node)
+
+    scale = to_node(scale, name=name + "_scale", device=device.CPU, dtype=numpy.float32)
+
+    node = menu.op(name=name, op_name=Name.Layer.sample2d_v2, inputs=[x, scale])
+    node.set(Name.type, type, numpy.int32)
+
     return node

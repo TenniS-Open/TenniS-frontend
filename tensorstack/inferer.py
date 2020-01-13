@@ -1951,6 +1951,23 @@ _register_shape_inferer("slice_v3", infer_slice_v3)
 _register_shape_inferer("leaky_relu", infer_copy_0)
 
 
+def infer_sample2d_v2(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 2
+    x = inputs[0]
+    scale = _infer_value(node.inputs[1])
+    if scale is None:
+        return None
+
+    y = numpy.asarray(x.shape).reshape([-1]) * numpy.asarray(scale).reshape([-1])
+    y = [int(math.floor(i)) for i in y]
+
+    return NodeShape(y, x.dtype)
+
+
+_register_shape_inferer("sample2d_v2", infer_sample2d_v2)
+
+
 if __name__ == "__main__":
     a = menu.param("a", [3], FLOAT32)
     b = menu.param("b", [3], FLOAT32)
