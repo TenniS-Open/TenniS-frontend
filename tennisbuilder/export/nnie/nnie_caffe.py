@@ -1,3 +1,5 @@
+# coding: UTF-8
+
 import tennis as ts
 
 from .proto import nnie_pb2 as caffe
