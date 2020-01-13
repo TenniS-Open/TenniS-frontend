@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import tennisbuilder as sb
+import tennisbuilder as tb
 import tennis as ts
 
 import os
@@ -56,11 +56,11 @@ def convert_grcnn(m, x, scope=None):
 
     images = x
 
-    features = sb.torch.module.convert_module(m.backbone, x=images, scope=scope + "/backbone")
-    proposals = sb.torch.module.convert_module(m.rpn, x=(images, features), scope=scope + "/rpn")
+    features = tb.torch.module.convert_module(m.backbone, x=images, scope=scope + "/backbone")
+    proposals = tb.torch.module.convert_module(m.rpn, x=(images, features), scope=scope + "/rpn")
 
     if m.roi_heads:
-        x, result = sb.torch.module.convert_module(m.roi_heads, x=(features, proposals), scope=scope + "/roi_heads")
+        x, result = tb.torch.module.convert_module(m.roi_heads, x=(features, proposals), scope=scope + "/roi_heads")
     else:
         x = features
         result = proposals
@@ -79,12 +79,12 @@ def convert_resnet(m, x, scope=None):
     stem = m.stem
     stages = m.stages
 
-    x = sb.torch.module.convert_module(stem, x, scope=scope + "/stem")
+    x = tb.torch.module.convert_module(stem, x, scope=scope + "/stem")
 
     outputs = []
 
     for stage_name in stages:
-        x = sb.torch.module.convert_module(getattr(m, stage_name), x, scope=scope + "/" + stage_name)
+        x = tb.torch.module.convert_module(getattr(m, stage_name), x, scope=scope + "/" + stage_name)
         if m.return_features[stage_name]:
             outputs.append(x)
 
@@ -99,8 +99,8 @@ def convert_stem(m, x, scope=None):
     assert isinstance(x, ts.Node)
     assert isinstance(m, StemWithFixedBatchNorm)
 
-    x = sb.torch.module.convert_module(m.conv1, x, scope=scope + "/conv1")
-    x = sb.torch.module.convert_module(m.bn1, x, scope=scope + "/bn1")
+    x = tb.torch.module.convert_module(m.conv1, x, scope=scope + "/conv1")
+    x = tb.torch.module.convert_module(m.bn1, x, scope=scope + "/bn1")
     x = ts.zoo.relu(name=scope + "/relu1", x=x)
     x = ts.frontend.onnx.pooling2d(name=scope + "pool1", x=x,
                                    ksize=(1, 1, 3, 3),
@@ -119,7 +119,7 @@ def convert_conv2d(m, x, scope=None):
     assert isinstance(x, ts.Node)
     assert isinstance(m, Conv2d)
 
-    return sb.torch.module.convert_conv2d(m, x, scope=scope)
+    return tb.torch.module.convert_conv2d(m, x, scope=scope)
 
 
 def convert_frozen_bn(m, x, scope=None):
@@ -171,19 +171,19 @@ def convert_bottleneck(m, x, scope=None):
 
     residual = x
 
-    out = sb.torch.module.convert_module(m.conv1, x, scope=scope + "/conv1")
-    out = sb.torch.module.convert_module(m.bn1, out, scope=scope + "/bn1")
+    out = tb.torch.module.convert_module(m.conv1, x, scope=scope + "/conv1")
+    out = tb.torch.module.convert_module(m.bn1, out, scope=scope + "/bn1")
     out = ts.zoo.relu(name=scope + "/relu1", x=out)
 
-    out = sb.torch.module.convert_module(m.conv2, out, scope=scope + "/conv2")
-    out = sb.torch.module.convert_module(m.bn2, out, scope=scope + "/bn2")
+    out = tb.torch.module.convert_module(m.conv2, out, scope=scope + "/conv2")
+    out = tb.torch.module.convert_module(m.bn2, out, scope=scope + "/bn2")
     out = ts.zoo.relu(name=scope + "/relu2", x=out)
 
-    out0 = sb.torch.module.convert_module(m.conv3, out, scope=scope + "/conv3")
-    out = sb.torch.module.convert_module(m.bn3, out0, scope=scope + "/bn3")
+    out0 = tb.torch.module.convert_module(m.conv3, out, scope=scope + "/conv3")
+    out = tb.torch.module.convert_module(m.bn3, out0, scope=scope + "/bn3")
 
     if m.downsample is not None:
-        residual = sb.torch.module.convert_module(m.downsample, x, scope=scope + "/downsample")
+        residual = tb.torch.module.convert_module(m.downsample, x, scope=scope + "/downsample")
 
     out = ts.zoo.add(name=scope + "/add", lhs=out, rhs=residual)
     out = ts.zoo.relu(name=scope + "/relu3", x=out)
@@ -204,19 +204,19 @@ def convert_bottleneck_deformable(m, x, scope=None):
 
     residual = x
 
-    out = sb.torch.module.convert_module(m.conv1, x, scope=scope + "/conv1")
-    out = sb.torch.module.convert_module(m.bn1, out, scope=scope + "/bn1")
+    out = tb.torch.module.convert_module(m.conv1, x, scope=scope + "/conv1")
+    out = tb.torch.module.convert_module(m.bn1, out, scope=scope + "/bn1")
     out = ts.zoo.relu(name=scope + "/relu1", x=out)
 
-    out = sb.torch.module.convert_module(m.deformconv2, out, scope=scope + "/deformconv2")
-    out = sb.torch.module.convert_module(m.bn2, out, scope=scope + "/bn2")
+    out = tb.torch.module.convert_module(m.deformconv2, out, scope=scope + "/deformconv2")
+    out = tb.torch.module.convert_module(m.bn2, out, scope=scope + "/bn2")
     out = ts.zoo.relu(name=scope + "/relu2", x=out)
 
-    out0 = sb.torch.module.convert_module(m.conv3, out, scope=scope + "/conv3")
-    out = sb.torch.module.convert_module(m.bn3, out0, scope=scope + "/bn3")
+    out0 = tb.torch.module.convert_module(m.conv3, out, scope=scope + "/conv3")
+    out = tb.torch.module.convert_module(m.bn3, out0, scope=scope + "/bn3")
 
     if m.downsample is not None:
-        residual = sb.torch.module.convert_module(m.downsample, x, scope=scope + "/downsample")
+        residual = tb.torch.module.convert_module(m.downsample, x, scope=scope + "/downsample")
 
     out = ts.zoo.add(name=scope + "/add", lhs=out, rhs=residual)
     out = ts.zoo.relu(name=scope + "/relu3", x=out)
@@ -235,7 +235,7 @@ def convert_dcn(m, x, scope=None):
     print("--# -=[ Converting {} layer: {} ]=-".format(m.__class__.__name__, scope))
     print("--##    REPR: {}".format(m))
 
-    out = sb.torch.module.convert_module(m.conv_offset_mask, x, scope=scope + "/conv_offset_mask")
+    out = tb.torch.module.convert_module(m.conv_offset_mask, x, scope=scope + "/conv_offset_mask")
 
     o1, o2, mask = ts.zoo.chunk(name=scope + "/chunk", x=out, chunks=3, dim=1)
     offset = ts.zoo.concat(name=scope + "/concat", inputs=(o1, o2), dim=1)
@@ -261,7 +261,7 @@ def convert_dcn(m, x, scope=None):
 
 
 def convert_attr_module(self, attr, scope, *args):
-    return sb.torch.module.convert_module(getattr(self, attr), tuple(args), scope=scope + "/" + attr)
+    return tb.torch.module.convert_module(getattr(self, attr), tuple(args), scope=scope + "/" + attr)
 
 
 def interpolate(name, x, scale_factor):
@@ -297,7 +297,7 @@ def convert_fpn(m, x, scope=None):
         results.insert(0, convert_attr_module(self, layer_block, scope, last_inner))
 
     if self.top_blocks is not None:
-        last_results = sb.torch.module.convert_module(m.top_blocks, results[-1], scope=scope + "/top_blocks")
+        last_results = tb.torch.module.convert_module(m.top_blocks, results[-1], scope=scope + "/top_blocks")
         results.extend(last_results)
 
     return results
@@ -522,9 +522,9 @@ def convert_roi_box_head(m, x, scope=None):
 
     assert isinstance(m, ROIBoxHead)
 
-    x = sb.torch.module.convert_module(m.feature_extractor, (features, proposals), scope=scope + "/feature_extractor")
-    class_logits, box_regression = sb.torch.module.convert_module(m.predictor, x, scope=scope + "/predictor")
-    result = sb.torch.module.convert_module(m.post_processor, ((class_logits, box_regression), proposals), scope=scope + "/post_processor")
+    x = tb.torch.module.convert_module(m.feature_extractor, (features, proposals), scope=scope + "/feature_extractor")
+    class_logits, box_regression = tb.torch.module.convert_module(m.predictor, x, scope=scope + "/predictor")
+    result = tb.torch.module.convert_module(m.post_processor, ((class_logits, box_regression), proposals), scope=scope + "/post_processor")
 
     return x, result
 
@@ -558,11 +558,11 @@ def convert_fpn2mlp_feature_extractor(m, x, scope=None):
     """
 
     x = features
-    x = sb.torch.module.convert_module(m.pooler, (x, proposals), scope=scope + "/pooler")
+    x = tb.torch.module.convert_module(m.pooler, (x, proposals), scope=scope + "/pooler")
     x = ts.zoo.flatten(name=scope + "/flatten", x=x)
-    x = sb.torch.module.convert_module(m.fc6, x=x, scope=scope + "/fc6")
+    x = tb.torch.module.convert_module(m.fc6, x=x, scope=scope + "/fc6")
     x = ts.zoo.relu(name=scope + "/relu6", x=x)
-    x = sb.torch.module.convert_module(m.fc7, x=x, scope=scope + "/fc7")
+    x = tb.torch.module.convert_module(m.fc7, x=x, scope=scope + "/fc7")
     x = ts.zoo.relu(name=scope + "/relu7", x=x)
 
     return x
@@ -615,8 +615,8 @@ def convert_fpn_predictor(m, x, scope=None):
     bbox_deltas = self.bbox_pred(x)
     """
 
-    scores = sb.torch.module.convert_module(m.cls_score, x, scope=scope + "/cls_score")
-    bbox_deltas = sb.torch.module.convert_module(m.bbox_pred, x, scope=scope + "/bbox_pred")
+    scores = tb.torch.module.convert_module(m.cls_score, x, scope=scope + "/cls_score")
+    bbox_deltas = tb.torch.module.convert_module(m.bbox_pred, x, scope=scope + "/bbox_pred")
 
     return scores, bbox_deltas
 
@@ -656,30 +656,30 @@ def convert_roi_box_head_post_processor(m, x, scope=None):
     return node
 
 
-sb.torch.module.register_module_converter(GeneralizedRCNN, convert_grcnn)
-sb.torch.module.register_module_converter(ResNet, convert_resnet)
-sb.torch.module.register_module_converter(StemWithFixedBatchNorm, convert_stem)
-sb.torch.module.register_module_converter(Conv2d, convert_conv2d)
-sb.torch.module.register_module_converter(FrozenBatchNorm2d, convert_frozen_bn)
-sb.torch.module.register_module_converter(BottleneckWithFixedBatchNorm, convert_bottleneck)
-sb.torch.module.register_module_converter(FPN, convert_fpn)
-sb.torch.module.register_module_converter(LastLevelMaxPool, convert_last_level_max_pool)
+tb.torch.module.register_module_converter(GeneralizedRCNN, convert_grcnn)
+tb.torch.module.register_module_converter(ResNet, convert_resnet)
+tb.torch.module.register_module_converter(StemWithFixedBatchNorm, convert_stem)
+tb.torch.module.register_module_converter(Conv2d, convert_conv2d)
+tb.torch.module.register_module_converter(FrozenBatchNorm2d, convert_frozen_bn)
+tb.torch.module.register_module_converter(BottleneckWithFixedBatchNorm, convert_bottleneck)
+tb.torch.module.register_module_converter(FPN, convert_fpn)
+tb.torch.module.register_module_converter(LastLevelMaxPool, convert_last_level_max_pool)
 
-sb.torch.module.register_module_converter(BottleneckWithFixedBatchNormDeformable, convert_bottleneck_deformable)
-sb.torch.module.register_module_converter(DCN, convert_dcn)
+tb.torch.module.register_module_converter(BottleneckWithFixedBatchNormDeformable, convert_bottleneck_deformable)
+tb.torch.module.register_module_converter(DCN, convert_dcn)
 
-sb.torch.module.register_module_converter(RPNModule, convert_rpn)
-sb.torch.module.register_module_converter(RPNHead, convert_rpn_head)
-sb.torch.module.register_module_converter(AnchorGenerator, convert_anchor_generator)
-sb.torch.module.register_module_converter(RPNPostProcessor, convert_rpn_post_processor)
+tb.torch.module.register_module_converter(RPNModule, convert_rpn)
+tb.torch.module.register_module_converter(RPNHead, convert_rpn_head)
+tb.torch.module.register_module_converter(AnchorGenerator, convert_anchor_generator)
+tb.torch.module.register_module_converter(RPNPostProcessor, convert_rpn_post_processor)
 
-sb.torch.module.register_module_converter(CombinedROIHeads, convert_combined_roi_heads)
-sb.torch.module.register_module_converter(ROIBoxHead, convert_roi_box_head)
+tb.torch.module.register_module_converter(CombinedROIHeads, convert_combined_roi_heads)
+tb.torch.module.register_module_converter(ROIBoxHead, convert_roi_box_head)
 
-sb.torch.module.register_module_converter(FPN2MLPFeatureExtractor, convert_fpn2mlp_feature_extractor)
-sb.torch.module.register_module_converter(Pooler, convert_pooler)
-sb.torch.module.register_module_converter(FPNPredictor, convert_fpn_predictor)
-sb.torch.module.register_module_converter(PostProcessor, convert_roi_box_head_post_processor)
+tb.torch.module.register_module_converter(FPN2MLPFeatureExtractor, convert_fpn2mlp_feature_extractor)
+tb.torch.module.register_module_converter(Pooler, convert_pooler)
+tb.torch.module.register_module_converter(FPNPredictor, convert_fpn_predictor)
+tb.torch.module.register_module_converter(PostProcessor, convert_roi_box_head_post_processor)
 
 
 def convert_module(m, x=None):
@@ -691,4 +691,4 @@ def convert_module(m, x=None):
     """
     m.eval()
     with torch.no_grad():
-        return sb.torch.module.convert_module(m, x)
+        return tb.torch.module.convert_module(m, x)

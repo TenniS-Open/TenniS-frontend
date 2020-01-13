@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import tennisbuilder as sb
+import tennisbuilder as tb
 import tennis as ts
 
 from models.faceboxes import FaceBoxes
@@ -83,7 +83,7 @@ def convert_faceboxs(m, x, scope=None):
     detection_dimension = list()
 
     self = m
-    x = sb.torch.module.convert_module(self.conv1, x=x, scope=scope + "/conv1")
+    x = tb.torch.module.convert_module(self.conv1, x=x, scope=scope + "/conv1")
     x = ts.frontend.onnx.pooling2d(name=scope + "/pool1", x=x,
                                    ksize=3,
                                    stride=2,
@@ -91,7 +91,7 @@ def convert_faceboxs(m, x, scope=None):
                                    type=ts.zoo.Type.pooling_type.max,
                                    padding_type=ts.zoo.Type.padding_type.white,
                                    auto_pad="NOTSET")
-    x = sb.torch.module.convert_module(self.conv2, x=x, scope=scope + "/conv2")
+    x = tb.torch.module.convert_module(self.conv2, x=x, scope=scope + "/conv2")
     x = ts.frontend.onnx.pooling2d(name=scope + "/pool1", x=x,
                                    ksize=3,
                                    stride=2,
@@ -99,21 +99,21 @@ def convert_faceboxs(m, x, scope=None):
                                    type=ts.zoo.Type.pooling_type.max,
                                    padding_type=ts.zoo.Type.padding_type.white,
                                    auto_pad="NOTSET")
-    x = sb.torch.module.convert_module(self.inception1, x=x, scope=scope + "/inception1")
-    x = sb.torch.module.convert_module(self.inception2, x=x, scope=scope + "/inception2")
-    x = sb.torch.module.convert_module(self.inception3, x=x, scope=scope + "/inception3")
+    x = tb.torch.module.convert_module(self.inception1, x=x, scope=scope + "/inception1")
+    x = tb.torch.module.convert_module(self.inception2, x=x, scope=scope + "/inception2")
+    x = tb.torch.module.convert_module(self.inception3, x=x, scope=scope + "/inception3")
 
     detection_dimension.append(shape_hw(x, scope=scope + "/detection_dimension_0"))
     sources.append(x)
 
-    x = sb.torch.module.convert_module(self.conv3_1, x=x, scope=scope + "/conv3_1")
-    x = sb.torch.module.convert_module(self.conv3_2, x=x, scope=scope + "/conv3_2")
+    x = tb.torch.module.convert_module(self.conv3_1, x=x, scope=scope + "/conv3_1")
+    x = tb.torch.module.convert_module(self.conv3_2, x=x, scope=scope + "/conv3_2")
 
     detection_dimension.append(shape_hw(x, scope=scope + "/detection_dimension_1"))
     sources.append(x)
 
-    x = sb.torch.module.convert_module(self.conv4_1, x=x, scope=scope + "/conv4_1")
-    x = sb.torch.module.convert_module(self.conv4_2, x=x, scope=scope + "/conv4_2")
+    x = tb.torch.module.convert_module(self.conv4_1, x=x, scope=scope + "/conv4_1")
+    x = tb.torch.module.convert_module(self.conv4_2, x=x, scope=scope + "/conv4_2")
 
     detection_dimension.append(shape_hw(x, scope=scope + "/detection_dimension_2"))
     sources.append(x)
@@ -123,11 +123,11 @@ def convert_faceboxs(m, x, scope=None):
 
     i = 0
     for (x, l, c) in zip(sources, self.loc, self.conf):
-        loc_i = sb.torch.module.convert_module(l, x=x, scope=scope + "/loc_%d" % i)
+        loc_i = tb.torch.module.convert_module(l, x=x, scope=scope + "/loc_%d" % i)
         loc_i = ts.zoo.transpose(name=scope + "/loc_%d_nhwc" % i, x=loc_i, permute=[0, 2, 3, 1])
         loc.append(loc_i)
 
-        conf_i = sb.torch.module.convert_module(c, x=x, scope=scope + "/conf_%d" % i)
+        conf_i = tb.torch.module.convert_module(c, x=x, scope=scope + "/conf_%d" % i)
         conf_i = ts.zoo.transpose(name=scope + "/conf_%d_nhwc" % i, x=conf_i, permute=[0, 2, 3, 1])
         conf.append(conf_i)
 
@@ -179,8 +179,8 @@ def convert_crelu(m, x, scope=None):
     """
 
     self = m
-    x = sb.torch.module.convert_module(self.conv, x=x, scope=scope + "/conv")
-    x = sb.torch.module.convert_module(self.bn, x=x, scope=scope + "/bn")
+    x = tb.torch.module.convert_module(self.conv, x=x, scope=scope + "/conv")
+    x = tb.torch.module.convert_module(self.bn, x=x, scope=scope + "/bn")
     neg_x = ts.zoo.sub(name=scope + "/neg", lhs=numpy.asarray(0, dtype=numpy.float32), rhs=x)
     x = ts.zoo.concat(name=scope + "/cat", inputs=[x, neg_x], dim=1)
     x = ts.zoo.relu(name=scope + "/relu", x=x)
@@ -215,7 +215,7 @@ def convert_inception(m, x, scope=None):
 
     self = m
 
-    branch1x1 = sb.torch.module.convert_module(self.branch1x1, x=x, scope=scope + "/branch1x1")
+    branch1x1 = tb.torch.module.convert_module(self.branch1x1, x=x, scope=scope + "/branch1x1")
     branch1x1_pool = ts.frontend.onnx.pooling2d(name=scope + "/branch1x1_pool", x=x,
                                                 ksize=3,
                                                 stride=1,
@@ -223,15 +223,15 @@ def convert_inception(m, x, scope=None):
                                                 type=ts.zoo.Type.pooling_type.avg,
                                                 padding_type=ts.zoo.Type.padding_type.white,
                                                 auto_pad="NOTSET")
-    branch1x1_2 = sb.torch.module.convert_module(self.branch1x1_2, x=branch1x1_pool, scope=scope + "/branch1x1_2")
+    branch1x1_2 = tb.torch.module.convert_module(self.branch1x1_2, x=branch1x1_pool, scope=scope + "/branch1x1_2")
 
-    branch3x3_reduce = sb.torch.module.convert_module(self.branch3x3_reduce, x=x, scope=scope + "/branch3x3_reduce")
-    branch3x3 = sb.torch.module.convert_module(self.branch3x3, x=branch3x3_reduce, scope=scope + "/branch3x3")
+    branch3x3_reduce = tb.torch.module.convert_module(self.branch3x3_reduce, x=x, scope=scope + "/branch3x3_reduce")
+    branch3x3 = tb.torch.module.convert_module(self.branch3x3, x=branch3x3_reduce, scope=scope + "/branch3x3")
 
-    branch3x3_reduce_2 = sb.torch.module.convert_module(self.branch3x3_reduce_2, x=x,
+    branch3x3_reduce_2 = tb.torch.module.convert_module(self.branch3x3_reduce_2, x=x,
                                                         scope=scope + "/branch3x3_reduce_2")
-    branch3x3_2 = sb.torch.module.convert_module(self.branch3x3_2, x=branch3x3_reduce_2, scope=scope + "/branch3x3_2")
-    branch3x3_3 = sb.torch.module.convert_module(self.branch3x3_3, x=branch3x3_2, scope=scope + "/branch3x3_3")
+    branch3x3_2 = tb.torch.module.convert_module(self.branch3x3_2, x=branch3x3_reduce_2, scope=scope + "/branch3x3_2")
+    branch3x3_3 = tb.torch.module.convert_module(self.branch3x3_3, x=branch3x3_2, scope=scope + "/branch3x3_3")
 
     outputs = [branch1x1, branch1x1_2, branch3x3, branch3x3_3]
     return ts.zoo.concat(name=scope + "/outputs", inputs=outputs, dim=1)
@@ -252,16 +252,16 @@ def convert_basic_conv2d(m, x, scope=None):
     """
     self = m
 
-    x = sb.torch.module.convert_module(self.conv, x=x, scope=scope + "/conv")
-    x = sb.torch.module.convert_module(self.bn, x=x, scope=scope + "/bn")
+    x = tb.torch.module.convert_module(self.conv, x=x, scope=scope + "/conv")
+    x = tb.torch.module.convert_module(self.bn, x=x, scope=scope + "/bn")
 
     return ts.zoo.relu(name=scope + "/relu", x=x)
 
 
-sb.torch.module.register_module_converter(FaceBoxes, convert_faceboxs)
-sb.torch.module.register_module_converter(CRelu, convert_crelu)
-sb.torch.module.register_module_converter(Inception, convert_inception)
-sb.torch.module.register_module_converter(BasicConv2d, convert_basic_conv2d)
+tb.torch.module.register_module_converter(FaceBoxes, convert_faceboxs)
+tb.torch.module.register_module_converter(CRelu, convert_crelu)
+tb.torch.module.register_module_converter(Inception, convert_inception)
+tb.torch.module.register_module_converter(BasicConv2d, convert_basic_conv2d)
 
 
 def convert_module(m, x=None):
@@ -273,7 +273,7 @@ def convert_module(m, x=None):
     """
     m.eval()
     with torch.no_grad():
-        return sb.torch.module.convert_module(m, x)
+        return tb.torch.module.convert_module(m, x)
 
 
 def convert(input_module, output_file, input):
@@ -285,4 +285,4 @@ def convert(input_module, output_file, input):
     :return: ts.Module
     """
 
-    return sb.torch.converter.convert(input_module=input_module, input=input, output_file=output_file)
+    return tb.torch.converter.convert(input_module=input_module, input=input, output_file=output_file)
