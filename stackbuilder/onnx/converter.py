@@ -694,6 +694,9 @@ def __whose_flatten_shape(shape):
     if shape.op != ts.zoo.Name.Layer.concat:
         return None
 
+    if len(shape.inputs) != 2:
+        return None
+
     unsqueeze_x_number = shape.inputs[0]
     unsqueeze_neg_one = shape.inputs[1]
 
