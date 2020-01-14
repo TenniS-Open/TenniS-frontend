@@ -29,6 +29,11 @@ if lib is None:
 
 if lib is None:
     from . import libfinder
+    lib, _ = libfinder.load_library(TennisName + "_")
+
+
+if lib is None:
+    from . import libfinder
     lib, _ = libfinder.load_library(TypoTennisName)
 
 
