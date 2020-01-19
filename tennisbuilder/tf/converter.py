@@ -682,10 +682,9 @@ def convert_reshape(tf_node, inputs):
 
     assert len(inputs) == 2
 
-    shape = tf_node.op.inputs[1].eval()
-    shape = numpy.asarray(shape, dtype=numpy.int32)
+    shape = inputs[1]
 
-    return ts.zoo.reshape(tf_node.op.name, inputs[0], shape=shape)
+    return ts.zoo.reshape_v2(tf_node.op.name, inputs[0], shape=shape)
 
 
 def convert_sub(tf_node, inputs):
@@ -1442,6 +1441,61 @@ def convert_expand_dims(tf_node, inputs):
 
 
 register_layer_converter("ExpandDims", convert_expand_dims)
+
+
+def _try_get_attr(attr_dict, key, value=None):
+    if key in attr_dict:
+        return attr_dict[key]
+    return value
+
+
+def convert_gather(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+    indices = inputs[1]
+
+    validate_indices = _try_get_attr(attr_dict, "validate_indices", True)
+    assert validate_indices, "Not used validate_indices, assert default == true"
+
+    node = ts.frontend.onnx.gather(node_name, x=x, indices=indices)
+
+    return node
+
+
+register_layer_converter("Gather", convert_gather)
+
+
+def convert_non_max_suppression_v2(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    # tf define: non_max_suppression_v2(boxes, scores, max_output_size, iou_threshold)
+    assert len(inputs) == 4
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    box = inputs[0]
+    scores = inputs[1]
+
+    max_output_size = inputs[2]
+    iou_threshold = inputs[3]
+    # score_threshold = inputs[4]
+
+    node = ts.frontend.tf.non_max_suppression_v3(node_name, box=box, scores=scores,
+                                                 max_output_size=max_output_size,
+                                                 iou_threshold=iou_threshold,
+                                                 score_threshold=0.01)
+
+    return node
+
+
+register_layer_converter("NonMaxSuppressionV2", convert_non_max_suppression_v2)
 
 
 

@@ -34,7 +34,7 @@ def map_nchw2nchw_to_nchw(x):
 def map_copy_to_nchw(x):
     # type: (ts.Node) -> ts.Node
     chw_input = [nhwc2nchw(i, name=i.name + "_nchw") for i in x.inputs]
-    x = copy.copy(x)
+    x = ts.graph.clone_bubble(x)
     ts.Node.Link(x, chw_input)
     x.name = x.name + "_nchw"
     return x
@@ -45,7 +45,7 @@ def map_fused_batch_norm_to_nchw(x):
     assert x.op == "fused_batch_norm"
     chw_input = list(x.inputs)
     chw_input[0] = nhwc2nchw(chw_input[0], name=chw_input[0].name + "_nchw")
-    x = copy.copy(x)
+    x = ts.graph.clone_bubble(x)
     ts.Node.Link(x, chw_input)
     x.name = x.name + "_nchw"
 
@@ -70,7 +70,7 @@ def map_reduce_mean(x):
 
     chw_input = list(x.inputs)
     chw_input[0] = nhwc2nchw(chw_input[0], name=chw_input[0].name + "_nchw")
-    x = copy.copy(x)
+    x = ts.graph.clone_bubble(x)
     ts.Node.Link(x, chw_input)
     x.name = x.name + "_nchw"
 
@@ -91,7 +91,7 @@ def map_concat(x):
 
     chw_inputs = list(x.inputs)
     chw_inputs = [nhwc2nchw(chw_input, name=chw_input.name + "_nchw") for chw_input in chw_inputs]
-    x = copy.copy(x)
+    x = ts.graph.clone_bubble(x)
     ts.Node.Link(x, chw_inputs)
     x.name = x.name + "_nchw"
 
@@ -115,7 +115,7 @@ def map_reduce_sum(x):
 
     chw_input = list(x.inputs)
     chw_input[0] = nhwc2nchw(chw_input[0], name=chw_input[0].name + "_nchw")
-    x = copy.copy(x)
+    x = ts.graph.clone_bubble(x)
     ts.Node.Link(x, chw_input)
     x.name = x.name + "_nchw"
 
