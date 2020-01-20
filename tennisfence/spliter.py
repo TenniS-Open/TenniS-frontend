@@ -801,19 +801,28 @@ class GraphSpliter(object):
                 module = ts.Node(MainGraph.SubGraphOp,
                                  sub_graph.outputs[0].name,
                                  sub_graph.outputs[0].shape)
+                if sub_graph.outputs[0].has("#dtype"):
+                    module.dtype = sub_graph.outputs[0].dtype
+                if sub_graph.outputs[0].has("#shape"):
+                    module.shape = sub_graph.outputs[0].shape
                 module_inputs = sub_graph.inputs
                 ts.Node.Link(module, module_inputs)
                 module.set("#index", i)
                 main_tips[sub_graph.outputs[0]] = module
             else:
                 module = ts.Node(MainGraph.SubGraphOp,
-                                 "&".join([n.name for n in sub_graph.outputs]),
-                                 sub_graph.outputs[0].shape)
+                                 "&".join([n.name for n in sub_graph.outputs]))
                 module_inputs = sub_graph.inputs
                 ts.Node.Link(module, module_inputs)
                 module.set("#index", i)
                 for j, o in enumerate(sub_graph.outputs):
-                    main_tips[o] = ts.menu.field(o.name, module, j)
+                    output_field = ts.menu.field(o.name, module, j)
+                    if o.has("#dtype"):
+                        output_field.dtype = o.dtype
+                    if o.has("#shape"):
+                        output_field.shape = o.shape
+                    main_tips[o] = output_field
+
             # self.logger.info(module)
 
         main_cache = {}
