@@ -1968,6 +1968,80 @@ def infer_sample2d_v2(node, inputs):
 _register_shape_inferer("sample2d_v2", infer_sample2d_v2)
 
 
+def infer_slice(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    if len(inputs) < 1:
+        return None
+
+    dtype = inputs[0].dtype
+    x_shape = list(inputs[0].shape)
+
+    begin = numpy.asarray(node.get("begin"), dtype=numpy.int32).reshape([-1])
+    size = numpy.asarray(node.get("size"), dtype=numpy.int32).reshape([-1])
+
+    if len(begin) > len(x_shape):
+        return None
+    if len(begin) != len(size):
+        return None
+
+    y_shape = list(x_shape)
+    for i in range(len(size)):
+        if y_shape[i] < 0:
+            y_shape[i] = size[i]
+            continue
+        if begin[i] > y_shape[i]:
+            y_shape[i] = 0
+            continue
+        right = min(y_shape[i], begin[i] + size[i])
+        y_shape[i] = right - begin[i]
+
+    return NodeShape(y_shape, dtype)
+
+
+_register_shape_inferer("slice", infer_slice)
+
+
+def infer_slice_v2(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    if len(inputs) != 3:
+        return None
+
+    dtype = inputs[0].dtype
+    x_shape = list(inputs[0].shape)
+
+    begin = _infer_value(node.inputs[1])
+    if begin is None:
+        return None
+
+    size = _infer_value(node.inputs[2])
+    if size is None:
+        return None
+
+    begin = numpy.asarray(begin, dtype=numpy.int32).reshape([-1])
+    size = numpy.asarray(size, dtype=numpy.int32).reshape([-1])
+
+    if len(begin) > len(x_shape):
+        return None
+    if len(begin) != len(size):
+        return None
+
+    y_shape = list(x_shape)
+    for i in range(len(size)):
+        if y_shape[i] < 0:
+            y_shape[i] = size[i]
+            continue
+        if begin[i] > y_shape[i]:
+            y_shape[i] = 0
+            continue
+        right = min(y_shape[i], begin[i] + size[i])
+        y_shape[i] = right - begin[i]
+
+    return NodeShape(y_shape, dtype)
+
+
+_register_shape_inferer("slice_v2", infer_slice_v2)
+
+
 if __name__ == "__main__":
     a = menu.param("a", [3], FLOAT32)
     b = menu.param("b", [3], FLOAT32)

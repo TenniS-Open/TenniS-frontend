@@ -208,6 +208,12 @@ def transpose(name, x, permute=None):
 def reshape_v2(name, x, shape):
     assert isinstance(x, Node)
 
+    try:
+        const_shape = to_const(shape, "shape")
+        return reshape(name, x, const_shape)
+    except:
+        pass
+
     shape = to_node(shape, "shape", dtype=numpy.int32, device=device.CPU)
 
     node = menu.op(name=name, op_name=Name.Layer.reshape_v2, inputs=[x, shape])
