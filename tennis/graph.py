@@ -18,6 +18,8 @@ from .node import read_bubble
 
 import numpy
 from typing import Union, List, Tuple, Set
+import copy
+
 
 class Graph(object):
     def __init__(self):
@@ -123,7 +125,7 @@ def clone_node(node, cache=None, tips=None):
 
     for k in node.params.keys():
         v = node.params[k]
-        dolly.set(k, v)
+        dolly.set(k, copy.copy(v))
 
     dolly_inputs = clone_graph(node.inputs, cache=cache, tips=tips)
     Node.Link(dolly, dolly_inputs)
@@ -152,7 +154,7 @@ def clone_bubble(node):
 
     for k in node.params.keys():
         v = node.params[k]
-        dolly.set(k, v)
+        dolly.set(k, copy.copy(v))
 
     return dolly
 

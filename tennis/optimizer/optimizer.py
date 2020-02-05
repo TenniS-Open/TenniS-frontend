@@ -2,6 +2,7 @@ from .. import Node
 from .. import zoo
 from .. import tensor
 from .. import menu
+from .. import graph
 
 import sys
 import numpy
@@ -122,14 +123,14 @@ def __fused_conv_bn(name, conv2d, add_bias=None, fused_batch_norm=None, batch_no
         w, b = __fused_batch_scale(w=w, b=b, scale=scale, bias=bias,
                                    w_shape=w_shape)
 
-    new_conv2d = copy.copy(conv2d)
-    new_bias = copy.copy(add_bias)
-    new_conv2d_inputs = [i for i in new_conv2d.inputs]
-    new_bias_inputs = [i for i in new_bias.inputs]
+    new_conv2d = graph.clone_bubble(conv2d)
+    new_bias = graph.clone_bubble(add_bias)
+    new_conv2d_inputs = [i for i in conv2d.inputs]
+    new_bias_inputs = [i for i in add_bias.inputs]
 
     import re
     if V2 and re.match(".*_conv2d_padding", new_conv2d_inputs[1].op):
-        new_dynamic_padding = copy.copy(new_conv2d_inputs[1])
+        new_dynamic_padding = graph.clone_bubble(new_conv2d_inputs[1])
         new_dynamic_padding_inputs = [i for i in new_dynamic_padding.inputs]
         new_conv2d_weights = menu.data(name=name + "_weights", value=w)
         new_dynamic_padding_inputs[1] = new_conv2d_weights
