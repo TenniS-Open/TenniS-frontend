@@ -130,8 +130,9 @@ def __fused_conv_bn(name, conv2d, add_bias=None, fused_batch_norm=None, batch_no
 
     import re
     if V2 and re.match(".*_conv2d_padding", new_conv2d_inputs[1].op):
-        new_dynamic_padding = graph.clone_bubble(new_conv2d_inputs[1])
-        new_dynamic_padding_inputs = [i for i in new_dynamic_padding.inputs]
+        dynamic_padding = new_conv2d_inputs[1]
+        new_dynamic_padding = graph.clone_bubble(dynamic_padding)
+        new_dynamic_padding_inputs = [i for i in dynamic_padding.inputs]
         new_conv2d_weights = menu.data(name=name + "_weights", value=w)
         new_dynamic_padding_inputs[1] = new_conv2d_weights
         new_conv2d_inputs[0] = x
