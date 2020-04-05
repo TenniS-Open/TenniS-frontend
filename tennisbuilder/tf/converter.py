@@ -1285,7 +1285,7 @@ def convert_softmax(tf_node, inputs):
     if 'axis' in attr_dict:
         axis = attr_dict['axis']
 
-    return ts.zoo.softmax(node_name, x, dim=axis)
+    return ts.zoo.softmax(node_name, x, dim=axis, smooth=False)
 
 
 register_layer_converter("Softmax", convert_softmax)
