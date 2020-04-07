@@ -4,11 +4,11 @@ The model garden. [See](./garden/README.md).
 
 ## Setup
 
-```base
+```bash
 # bind libtennis to setup, must be compiled first
 python setup.py bind --lib=`pwd`/../lib/libtennis.so
 # install in comman way
-python setup.py --prefix=/path/to/install
+python setup.py install --prefix=/path/to/install
 ```
 
 ## Package
