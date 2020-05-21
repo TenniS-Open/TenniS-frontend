@@ -136,7 +136,7 @@ def from_numpy(dtype):
     for pair in convert_pairs:
         if dtype == pair[0]:
             return pair[1]
-    raise Exception("Not supported numpy.dtype={}".format(dtype))\
+    raise Exception("Not supported numpy.dtype={}".format(dtype))
 
 
 def to_numpy(dtype):

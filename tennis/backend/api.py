@@ -1142,14 +1142,14 @@ def RegisterOperator(cls, device, op):
                 obj = _C.cast(obj, _C.c_void_p)
                 c_void_ptr = obj.value
 
-                if c_void_ptr in _OperatorPool:
-                    del _OperatorPool[c_void_ptr]
-
                 p_pyobj = _C.cast(obj, _C.POINTER(_C.py_object))
                 obj = p_pyobj.contents.value
 
                 if isinstance(obj, Operator):
                     obj.dispose()
+
+                if c_void_ptr in _OperatorPool:
+                    del _OperatorPool[c_void_ptr]
             return
         except Exception as e:
             import traceback
