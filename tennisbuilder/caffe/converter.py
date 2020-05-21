@@ -507,9 +507,7 @@ def convert_convolution_layer(layer, params, input_nodes, output_names):
         group = layer_param.group
         print("--##    group: {}".format(group))
 
-    input_channels = weights_blob.shape[1]
-
-    assert weights_blob.shape[0] * group == num_output
+    assert weights_blob.shape[0] == num_output
 
     axis = 1
     if layer_param.HasField("axis"):
@@ -523,6 +521,9 @@ def convert_convolution_layer(layer, params, input_nodes, output_names):
     is_conv2d = group == 1
     is_depthwise_conv2d = weights_blob.shape[1] == 1
 
+    if is_depthwise_conv2d:
+        assert weights_blob.shape[1] * group == num_output
+
     node = None
 
     if is_conv2d:
@@ -534,7 +535,7 @@ def convert_convolution_layer(layer, params, input_nodes, output_names):
     elif is_depthwise_conv2d:
         weights_shape = weights_blob.shape
         depthwise_weights_shape = (weights_shape[1], weights_shape[0], weights_shape[2], weights_shape[3])
-        weights_blob = weights_blob.reshape(shape=depthwise_weights_shape)
+        weights_blob = numpy.reshape(weights_blob, depthwise_weights_shape)
         node = ts.zoo.depthwise_conv2d(conv2d_name, x=input_nodes[0], w=weights_blob, format=ts.zoo.Name.NCHW,
                                        padding=[[0, 0], [0, 0], [padding[0], padding[0]], [padding[1], padding[1]]],
                                        padding_value=0,
@@ -817,6 +818,8 @@ def convert_eltwise(layer, params, input_nodes, output_names):
     node = None
     if operation == caffe.EltwiseParameter.SUM:
         node = ts.zoo.add(node_name, lhs=lhs, rhs=rhs, dtype=numpy.float32)
+    if operation == caffe.EltwiseParameter.PROD:
+        node = ts.zoo.mul(node_name, lhs=lhs, rhs=rhs, dtype=numpy.float32)
 
     if node is None:
         raise NotImplementedError(layer)
@@ -863,7 +866,7 @@ register_layer_converter("Sigmoid", convert_sigmoid_layer)
 
 
 def convert_reshape_layer(layer, params, input_nodes, output_names):
-    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    # type: (caffe.LayerParameter, List[ts.Node], List[ts.Node], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
 
     assert len(input_nodes) == 1
@@ -910,3 +913,41 @@ def convert_softmax_layer(layer, params, input_nodes, output_names):
 
 
 register_layer_converter("Softmax", convert_softmax_layer)
+
+
+# register_layer_converter("DepthwiseConvolution", convert_convolution_layer)
+
+
+def convert_power_layer(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 1
+    assert len(params) == 0
+    assert len(output_names) == 1
+
+    x = input_nodes[0]
+    node_name = output_names[0]
+
+    layer_param = layer.power_param
+
+    power = message_getattr(layer_param, "power", 1)
+    scale = message_getattr(layer_param, "scale", 1)
+    shift = message_getattr(layer_param, "shift", 0)
+
+    print("--##    power: {}".format(power))
+    print("--##    scale: {}".format(scale))
+    print("--##    shift: {}".format(shift))
+
+    assert power == 1
+
+    node = x
+    if scale != 1:
+        node = ts.zoo.mul(node_name + "_scale_", scale, node, numpy.float32)
+
+    node = ts.zoo.add(node_name, shift, node, numpy.float32)
+
+    return node,
+
+
+register_layer_converter("Power", convert_power_layer)
