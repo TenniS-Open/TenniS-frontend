@@ -384,7 +384,8 @@ class GraphSpliter(object):
             v = node.params[k]
             dolly.set(k, v)
 
-        dolly_inputs = self._clone_graph(node.inputs, cache=cache, tips=tips)
+        dolly_inputs = [cache[node] if node in cache else self._clone_node(node, cache=cache, tips=tips)
+                        for node in node.inputs]
         ts.Node.Link(dolly, dolly_inputs)
 
         cache[node] = dolly
@@ -397,7 +398,7 @@ class GraphSpliter(object):
             cache = {}
         if tips is None:
             tips = {}
-        return [self._clone_node(node, cache=cache, tips=tips) for node in nodes]
+        return [cache[node] if node in cache else self._clone_node(node, cache=cache, tips=tips) for node in nodes]
 
     def _explore(self, node, ref, dead=None):
         # type: (ts.Node, RefCache, Set[ts.Node]) -> Tuple[Optional[List[ts.Node]], Optional[List[ts.Node]]]

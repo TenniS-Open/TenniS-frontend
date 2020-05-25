@@ -205,14 +205,16 @@ def transpose(name, x, permute=None):
     return node
 
 
-def reshape_v2(name, x, shape):
+def reshape_v2(name, x, shape, force=False):
     assert isinstance(x, Node)
 
-    try:
-        const_shape = to_const(shape, "shape")
-        return reshape(name, x, const_shape)
-    except:
-        pass
+    # force means try use v2 node
+    if not force:
+        try:
+            const_shape = to_const(shape, "shape")
+            return reshape(name, x, const_shape)
+        except:
+            pass
 
     shape = to_node(shape, "shape", dtype=numpy.int32, device=device.CPU)
 
