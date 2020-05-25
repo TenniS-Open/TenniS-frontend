@@ -468,11 +468,7 @@ def infer_inner_prod(node, inputs):
     assert len(inputs) == 2
 
     x = inputs[0]
-    w = node.inputs[1]
-    if w.op != Node.Const:
-        return None
-    w = w.get("value")
-    w = tensor.from_any(w)
+    w = inputs[1]
 
     transpose = node.try_get("transpose", False)
 
@@ -1865,7 +1861,7 @@ def infer_broadcast(node, inputs):
 
     x = inputs[0]
     shape = _infer_value(node.inputs[1])
-    if shape is not None:
+    if shape is None:
         return None
     shape = list(numpy.asarray(shape, numpy.int32).reshape([-1]))
 
