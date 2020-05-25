@@ -2038,6 +2038,11 @@ def infer_slice_v2(node, inputs):
 _register_shape_inferer("slice_v2", infer_slice_v2)
 
 
+def infer_value(node, value=None):
+    # type: (Node, object) -> Union[None, object, numpy.ndarray]
+    return _infer_value(node, value)
+
+
 if __name__ == "__main__":
     a = menu.param("a", [3], FLOAT32)
     b = menu.param("b", [3], FLOAT32)
