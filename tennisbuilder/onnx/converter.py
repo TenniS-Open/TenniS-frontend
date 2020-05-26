@@ -1157,7 +1157,10 @@ def convert_flatten_layer(node, input_nodes, output_names):
     if "axis" in attr_dict:
         axis = attr_dict["axis"]
 
-    ts_node = ts.zoo.flatten(node_name, x=x, dim=axis)
+    if axis == 1:
+        ts_node = ts.zoo.flatten(node_name, x=x, dim=axis)
+    else:
+        ts_node = ts.zoo.flatten2d(node_name, x=x, dim=axis)
 
     return ts_node,
 

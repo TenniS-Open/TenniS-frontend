@@ -51,6 +51,7 @@ class Name(object):
         softmax = "softmax"
         concat = "concat"
         flatten = "flatten"
+        flatten2d = "flatten2d"
         to_float = "to_float"
         pooling2d = "pooling2d"
         pooling2d_v2 = "pooling2d_v2"
@@ -669,6 +670,13 @@ def concat(name, inputs, dim):
 def flatten(name, x, dim=1):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name=Name.Layer.flatten, inputs=[x, ])
+    node.set(Name.dim, dim, numpy.int32)
+    return node
+
+
+def flatten2d(name, x, dim=1):
+    assert isinstance(x, Node)
+    node = menu.op(name=name, op_name=Name.Layer.flatten2d, inputs=[x, ])
     node.set(Name.dim, dim, numpy.int32)
     return node
 
