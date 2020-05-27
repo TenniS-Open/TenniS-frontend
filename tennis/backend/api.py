@@ -694,12 +694,12 @@ class ImageFilter(object):
         _C.ts_api_check_bool(_C.ts_ImageFilter_scale(self, scale))
 
     def sub_mean(self, mean):
-        # type: (float) -> None
+        # type: (Union[float, List[float], Tuple[float]]) -> None
         c_array, c_len, _ = _to_ctypes_array(mean, _C.c_float)
         _C.ts_api_check_bool(_C.ts_ImageFilter_sub_mean(self, c_array, c_len))
 
     def div_std(self, std):
-        # type: (float) -> None
+        # type: (Union[float, List[float], Tuple[float]]) -> None
         c_array, c_len, _ = _to_ctypes_array(std, _C.c_float)
         _C.ts_api_check_bool(_C.ts_ImageFilter_div_std(self, c_array, c_len))
 
