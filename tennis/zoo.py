@@ -78,6 +78,7 @@ class Name(object):
         square = "square"
         range = "range"
         maximum = "maximum"
+        minimum = "minimum"
         exp = "exp"
         slice_v3 = "slice_v3"
         leaky_relu = "leaky_relu"
@@ -261,6 +262,7 @@ def NHWC2NCHW(name, x):
     assert isinstance(x, Node)
 
     return transpose(name=name, x=x, permute=[0, 3, 1, 2])
+
 
 def format4h(format):
     if format == Name.NCHW:
@@ -689,8 +691,8 @@ def resize2d(name, x, size, type=Type.resize2d_type.linear):
 
 
 def pooling2d_v2(name, x, ksize, stride, type=Type.pooling_type.max, format=Name.NCHW,
-              padding=None,
-              padding_type=Type.padding_type.black):
+                 padding=None,
+                 padding_type=Type.padding_type.black):
     assert isinstance(x, Node)
 
     padding = adjust_padding(padding, format=format)
@@ -817,11 +819,11 @@ def chunk(name, x, chunks, dim=0):
     chunks = to_const(chunks, "chunks")
     dim = to_const(dim, "dim")
 
-    node = menu.op(name=name, op_name=Name.Layer.chunk, inputs=[x,])
+    node = menu.op(name=name, op_name=Name.Layer.chunk, inputs=[x, ])
     node.set(Name.chunks, chunks, numpy.int32)
     node.set(Name.dim, dim, numpy.int32)
 
-    outputs = [menu.field(name=name + ":" + str(i), input=node, offset=i) for i in range(int(chunks))]
+    outputs = [menu.field(name=name + ":" + str(i), input=node, offset=i) for i in py_range(int(chunks))]
 
     return outputs
 
@@ -1027,3 +1029,53 @@ def sample2d_v2(name, x, scale, type=Type.resize2d_type.hard):
     node.set(Name.type, type, numpy.int32)
 
     return node
+
+
+def ceil(name, x):
+    assert isinstance(x, Node)
+
+    node = menu.op(name=name, op_name="ceil", inputs=[x])
+
+    return node
+
+
+def transpose_v2(name, x, permute):
+    assert isinstance(x, Node)
+
+    try:
+        permute = to_const(permute, "permute")
+        return transpose(name, x, permute=permute)
+    except:
+        node = menu.op(name=name, op_name="transpose_v2", inputs=[x, permute])
+        return node
+
+
+def reduce_prod(name, x, reduce_dims, keep_dims=True):
+    assert isinstance(x, Node)
+    node = menu.op(name=name, op_name="reduce_prod", inputs=[x, ])
+    node.set(Name.dims, reduce_dims, numpy.int32)
+    node.set(Name.keep_dims, keep_dims, numpy.bool)
+    return node
+
+
+def minimum(name, lhs, rhs, dtype=None):
+    lhs = to_node(lhs, name="_const_" + name + "_lhs", dtype=dtype)
+    rhs = to_node(rhs, name="_const_" + name + "_rhs", dtype=dtype)
+
+    node = menu.op(name=name, op_name=Name.Layer.minimum, inputs=[lhs, rhs])
+
+    return node
+
+
+def sample2d_like(name, x, y, type=Type.resize2d_type.hard):
+    assert isinstance(x, Node)
+
+    y = to_node(y, "y")
+
+    node = menu.op(name=name, op_name="sample2d_like", inputs=[x, y])
+    node.set(Name.type, type, numpy.int32)
+
+    return node
+
+
+

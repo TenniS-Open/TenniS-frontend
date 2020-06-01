@@ -375,12 +375,15 @@ def slice_v2(name, x, begin, size):
     assert isinstance(x, Node)
 
     try:
-        begin = zoo.to_const(begin, "begin")
-        size = zoo.to_const(size, "size")
+        _begin = zoo.to_const(begin, "begin")
+        _size = zoo.to_const(size, "size")
 
-        return slice(name, x, begin, size)
+        return slice(name, x, _begin, _size)
     except:
         pass
+
+    begin = zoo.to_node(begin, name=name + "_begin", device=device.CPU, dtype=numpy.int32)
+    size = zoo.to_node(size, name=name + "_size", device=device.CPU, dtype=numpy.int32)
 
     # operator
     node = menu.op(name=name, op_name=Name.Layer.slice_v2, inputs=[x, begin, size])
@@ -391,13 +394,18 @@ def slice_v2(name, x, begin, size):
 def topk_v2(name, x, number, sorted=True):
     assert isinstance(x, Node)
 
-    number = zoo.to_const(number, "number")
     sorted = zoo.to_const(sorted, "sorted")
+    try:
+        number = zoo.to_const(number, "number")
 
-    # operator
-    node = menu.op(name=name, op_name=Name.Layer.topkv2, inputs=[x, ])
-    node.set(Name.number, number, numpy.int32)
-    node.set(Name.sorted, sorted, numpy.int32)
+        node = menu.op(name=name, op_name=Name.Layer.topkv2, inputs=[x, ])
+        node.set(Name.number, number, numpy.int32)
+        node.set(Name.sorted, sorted, numpy.int32)
+    except:
+        number = zoo.to_node(number, name=name + "_number", device=device.CPU, dtype=numpy.int32)
+
+        node = menu.op(name=name, op_name=Name.Layer.topkv2, inputs=[x, number])
+        node.set(Name.sorted, sorted, numpy.int32)
 
     return [menu.field(name="{}:{}".format(name, i), input=node, offset=i) for i in range(2)]
 

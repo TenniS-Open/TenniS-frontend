@@ -27,7 +27,7 @@ def register_layer_converter(layer, converter):
     layer2converter[layer] = converter
 
 
-def convert(graph, inputs, outputs, output_file):
+def convert(graph, inputs, outputs, output_file, debug=False):
     if inputs is None:
         raise Exception("param #2 inputs must be set.")
     if outputs is None:
@@ -64,30 +64,16 @@ def convert(graph, inputs, outputs, output_file):
         "BiasAdd": convert_bias_add,
         "Conv2D": convert_conv2d,
         "Relu": convert_relu,
-        "Sum": convert_not_implemented,
-        "Cast": convert_not_implemented,
-        "Softmax": convert_not_implemented,
-        "Shape": convert_not_implemented,
 
-        "GatherV2": convert_not_implemented,
-        "ResizeNearestNeighbor": convert_not_implemented,
         "Rsqrt": convert_rsqrt,
-        "Maximum": convert_not_implemented,
-        "Square": convert_not_implemented,
-        "Range": convert_not_implemented,
-        "Exp": convert_not_implemented,
-        "Slice": convert_not_implemented,
-        "TopKV2": convert_not_implemented,
-        "Max": convert_not_implemented,
-        "NonMaxSuppressionV3": convert_not_implemented,
-        "ExpandDims": convert_not_implemented,
-        "ArgMax": convert_not_implemented,
 
         # 2019-04-27
         "Squeeze": convert_squeeze,
         "Mean": convert_mean,
         "BatchToSpaceND": convert_batch_to_space_nd,
         "SpaceToBatchND": convert_space_to_batch_nd,
+
+        "StopGradient": convert_identity,
 
         # 2019-06-14
         # add in layer2converter
@@ -117,6 +103,10 @@ def convert(graph, inputs, outputs, output_file):
         operation = tf_node.op
         if operation_index in map_tf_operation_index_ts_node:
             return map_tf_operation_index_ts_node[operation_index]
+
+        if debug and (tf_node.op, 0) in map_tf_operation_index_ts_node:
+            return map_tf_operation_index_ts_node[(tf_node.op, 0)]
+
         operation_type = operation.type
 
         if operation_type == "Identity":
@@ -126,8 +116,14 @@ def convert(graph, inputs, outputs, output_file):
             return ts_node
 
         if operation_type not in map_converter:
-            raise Exception("Not supported Layer: {}".format(operation_type))
-        converter = map_converter[operation_type]
+            if debug:
+                converter = convert_fake_tf
+            else:
+                attr_dict = node_def_attr_dict(tf_node)
+                raise Exception("Not supported Layer: {} with attr: {}".format(
+                    operation_type, attr_dict))
+        else:
+            converter = map_converter[operation_type]
 
         input_ts_nodes = []
         for input in operation.inputs:
@@ -299,6 +295,9 @@ def convert_conv2d(tf_node, inputs):
     attr_dict = node_def_attr_dict(tf_node)
     print("--##    attr: {}".format(attr_dict))
     node_name = tf_node.op.name
+
+    if node_name == "ssd_vgg/block10/conv1x1/Conv2D":
+        print("hook")
 
     x = inputs[0]
     w = inputs[1]
@@ -523,6 +522,9 @@ def convert_any_pool(tf_node, inputs):
     attr_dict = node_def_attr_dict(tf_node)
     print("--##    attr: {}".format(attr_dict))
     node_name = tf_node.op.name
+    
+    if node_name == "ssd_vgg/MaxPool2D_4/MaxPool":
+        print("hook")
 
     x = inputs[0]
 
@@ -669,6 +671,27 @@ def convert_not_implemented(tf_node, inputs):
     attr_dict = node_def_attr_dict(tf_node)
 
     raise NotImplementedError("{} with attr: {}".format(tf_node.op.type, attr_dict))
+
+
+def convert_fake_tf(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+    node_op = tf_node.op.type
+
+    node = ts.menu.op(name=node_name, op_name="tf::" + node_op, inputs=inputs)
+
+    for k, v in attr_dict.items():
+        node.set(k, v)
+
+    output_count = len(tf_node.op.outputs)
+
+    if output_count > 1:
+        return [ts.menu.field("{}:{}".format(node_name, i), node, i) for i in range(output_count)]
+    else:
+        return node
 
 
 def convert_strided_slice(tf_node, inputs):
@@ -999,7 +1022,7 @@ def convert_enter(tf_node, inputs):
     return node
 
 
-register_layer_converter("Enter", convert_enter)
+# register_layer_converter("Enter", convert_enter)
 
 
 def convert_tensor_array_v3(tf_node, inputs):
@@ -1158,7 +1181,7 @@ def convert_reduce_sum(tf_node, inputs):
     if "keep_dims" in attr_dict:
         keep_dims = attr_dict["keep_dims"]
 
-    if len(dims) != 1:
+    if dims.shape != () and dims.shape != (1,):
         raise NotImplementedError("dims={}".format(dims))
 
     return ts.zoo.reduce_sum(name=node_name, x=x, reduce_dims=dims, keep_dims=keep_dims)
@@ -1498,4 +1521,254 @@ def convert_non_max_suppression_v2(tf_node, inputs):
 register_layer_converter("NonMaxSuppressionV2", convert_non_max_suppression_v2)
 
 
+def convert_transpose(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
 
+    x = inputs[0]
+    perm = inputs[1]
+
+    node = ts.zoo.transpose_v2(node_name, x, perm)
+
+    return node
+
+
+register_layer_converter("Transpose", convert_transpose)
+
+
+def convert_ceil(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 1
+    # attr_dict = node_def_attr_dict(tf_node)
+    # print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+
+    return ts.zoo.ceil(node_name, x)
+
+# register_layer_converter("Ceil", convert_ceil)
+
+
+def convert_reduce_prod(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+    dims = inputs[1]
+    try:
+        dims = ts.zoo.to_const(dims)
+    except:
+        raise NotImplementedError("The parma 1 must be const")
+
+    keep_dims = False
+    if "keep_dims" in attr_dict:
+        keep_dims = attr_dict["keep_dims"]
+
+    if len(dims) != 1:
+        raise NotImplementedError("dims={}".format(dims))
+
+    return ts.zoo.reduce_prod(name=node_name, x=x, reduce_dims=dims, keep_dims=keep_dims)
+
+# register_layer_converter("Prod", convert_reduce_prod)
+
+
+def convert_mat_mal(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    a = inputs[0]
+    b = inputs[1]
+
+    transpose_a = _try_get_attr(attr_dict, "transpose_a", False)
+    transpose_b = _try_get_attr(attr_dict, "transpose_b", False)
+
+    if transpose_a:
+        raise NotImplementedError("Not support transpose_a=True, {}".format(attr_dict))
+
+    return ts.zoo.inner_prod(node_name, a, b, transpose=transpose_b)
+
+
+register_layer_converter("MatMul", convert_mat_mal)
+
+
+def convert_mirror_pad(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+    padding = inputs[1]
+    try:
+        padding = ts.zoo.to_const(padding)
+    except:
+        raise NotImplementedError("The parma 1 must be const")
+
+    mode = attr_dict["mode"]
+
+    print("[WARNNING] MirrorPad not support mode={}, use const pad instead.".format(mode))
+
+    return ts.zoo.pad(node_name, x, padding=padding)
+
+
+register_layer_converter("MirrorPad", convert_mirror_pad)
+
+
+def convert_split(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    dim = inputs[0]
+    x = inputs[1]
+    try:
+        dim = ts.zoo.to_const(dim)
+    except:
+        raise NotImplementedError("The parma 0 must be const")
+
+    num_split = attr_dict["num_split"]
+
+    chunks = ts.zoo.chunk(node_name, x, chunks=num_split, dim=dim)
+
+    return chunks
+
+
+register_layer_converter("Split", convert_split)
+
+
+def convert_minimum(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    lhs = inputs[0]
+    rhs = inputs[1]
+
+    return ts.zoo.minimum(name=node_name, lhs=lhs, rhs=rhs)
+
+
+# register_layer_converter("Minimum", convert_minimum)
+
+
+def convert_size(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 1
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+
+    flatten = ts.zoo.flatten(node_name + "/flatten", x, dim=0)
+    shape = ts.zoo.shape(node_name + "/shape", flatten)
+    size = ts.zoo.reshape(node_name, shape, shape=())
+
+    return size
+
+
+register_layer_converter("Size", convert_size)
+
+
+def convert_tile(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 1
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+
+    flatten = ts.zoo.flatten(node_name + "/flatten", x, dim=0)
+    shape = ts.zoo.shape(node_name + "/shape", flatten)
+    size = ts.zoo.reshape(node_name, shape, shape=())
+
+    return size
+
+
+#register_layer_converter("Tile", convert_tile)
+
+
+def convert_sigmood(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 1
+    # attr_dict = node_def_attr_dict(tf_node)
+    # print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+
+    return ts.zoo.sigmoid(node_name, x)
+
+
+register_layer_converter("Sigmoid", convert_sigmood)
+
+
+def convert_swish_f32(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 1
+    # attr_dict = node_def_attr_dict(tf_node)
+    # print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+
+    simgoid_x = ts.zoo.sigmoid(node_name + "/sigmoid", x)
+
+    return ts.zoo.mul(node_name, x, simgoid_x)
+
+
+register_layer_converter("swish_f32", convert_swish_f32)
+
+
+def _get_resize_to_node(size):
+    # type: (ts.Node) -> Optional[ts.Node]
+
+    
+
+    pass
+
+
+def convert_resize_bilinear(tf_node, inputs):
+    # type: (tf.Tensor, List[ts.Node]) -> ts.Node
+
+    assert len(inputs) == 2
+    attr_dict = node_def_attr_dict(tf_node)
+    print("--##    attr: {}".format(attr_dict))
+    node_name = tf_node.op.name
+
+    x = inputs[0]
+    size = inputs[1]
+
+    y = _get_resize_to_node(size)
+
+    simgoid_x = ts.zoo.sigmoid(node_name + "/sigmoid", x)
+
+    return ts.zoo.mul(node_name, x, simgoid_x)
+
+
+# register_layer_converter("ResizeBilinear", convert_resize_bilinear)
