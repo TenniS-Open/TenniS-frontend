@@ -255,9 +255,9 @@ def infer_resize2d(node, inputs):
     assert len(inputs) == 2
     x = inputs[0]
     size = node.inputs[1]
-    if size.op != Node.Const:
+    size = infer_value(size)
+    if size is None:
         return None
-    size = size.get("value")
     y = list(x.shape)
     if len(y) != len(size):
         return None
@@ -421,21 +421,53 @@ def infer_flatten(node, inputs):
 
     x = inputs[0]
 
-    if len(x.shape) == 0:
-        return NodeShape((1, 1), x.dtype)
-    elif len(x.shape) == 1:
-        return NodeShape((x.shape[0], 1), x.dtype)
+    dim = int(node.try_get("dim", 1))
+    if dim < 0:
+        dim += len(x.shape)
 
-    y = (x.shape[0], numpy.prod(x.shape[1:]))
+    x_size = len(x.shape)
+    need_size = dim + 1
+
+    if need_size == x_size:
+        y = list(x.shape)
+    elif need_size > x_size:
+        y = list(x.shape)
+        y.extend([1] * (need_size - x_size))
+    else:
+        y = list(x.shape[:need_size])
+        y[-1] = numpy.prod(x.shape[dim:])
 
     a = _infer_value(node.inputs[0])
     if a is not None:
-        node.set("#value", numpy.reshape(a, (a.shape[0], -1)))
+        node.set("#value", numpy.reshape(a, y))
 
     return NodeShape(y, x.dtype)
 
 
 _register_shape_inferer("flatten", infer_flatten)
+
+
+def infer_flatten2d(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 1
+
+    x = inputs[0]
+
+    dim = int(node.try_get("dim", 1))
+    if dim < 0:
+        dim += len(x.shape)
+
+    if dim == 0:
+        y = (1, numpy.prod(x.shape))
+    elif dim >= len(x.shape):
+        y = (numpy.prod(x.shape), 1)
+    else:
+        y = (numpy.prod(x.shape[:dim]), numpy.prod(x.shape[dim:]))
+
+    return NodeShape(y, x.dtype)
+
+
+_register_shape_inferer("flatten2d", infer_flatten2d)
 
 
 def infer_reshape(node, inputs):
@@ -468,11 +500,7 @@ def infer_inner_prod(node, inputs):
     assert len(inputs) == 2
 
     x = inputs[0]
-    w = node.inputs[1]
-    if w.op != Node.Const:
-        return None
-    w = w.get("value")
-    w = tensor.from_any(w)
+    w = inputs[1]
 
     transpose = node.try_get("transpose", False)
 
@@ -1865,7 +1893,7 @@ def infer_broadcast(node, inputs):
 
     x = inputs[0]
     shape = _infer_value(node.inputs[1])
-    if shape is not None:
+    if shape is None:
         return None
     shape = list(numpy.asarray(shape, numpy.int32).reshape([-1]))
 
@@ -2040,6 +2068,11 @@ def infer_slice_v2(node, inputs):
 
 
 _register_shape_inferer("slice_v2", infer_slice_v2)
+
+
+def infer_value(node, value=None):
+    # type: (Node, object) -> Union[None, object, numpy.ndarray]
+    return _infer_value(node, value)
 
 
 if __name__ == "__main__":

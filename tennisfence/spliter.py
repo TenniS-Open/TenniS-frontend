@@ -384,7 +384,8 @@ class GraphSpliter(object):
             v = node.params[k]
             dolly.set(k, v)
 
-        dolly_inputs = self._clone_graph(node.inputs, cache=cache, tips=tips)
+        dolly_inputs = [cache[node] if node in cache else self._clone_node(node, cache=cache, tips=tips)
+                        for node in node.inputs]
         ts.Node.Link(dolly, dolly_inputs)
 
         cache[node] = dolly
@@ -397,7 +398,7 @@ class GraphSpliter(object):
             cache = {}
         if tips is None:
             tips = {}
-        return [self._clone_node(node, cache=cache, tips=tips) for node in nodes]
+        return [cache[node] if node in cache else self._clone_node(node, cache=cache, tips=tips) for node in nodes]
 
     def _explore(self, node, ref, dead=None):
         # type: (ts.Node, RefCache, Set[ts.Node]) -> Tuple[Optional[List[ts.Node]], Optional[List[ts.Node]]]
@@ -408,6 +409,8 @@ class GraphSpliter(object):
         :return: sub graph's output nodes, sub graph's input nodes(end points)
         Notice, return None, None for the node is not suitable for split
         """
+        MAX_GRAPH = sys.maxsize
+
         if dead is None:
             dead = {}
 
@@ -446,7 +449,8 @@ class GraphSpliter(object):
                         self.is_route_or_support(n) and \
                         not any([ref.ref(t, n) for t in input_set]) and \
                         not any([ref.ref(n, t) for t in output_set]) and \
-                        len(set(n.outputs) - graph_set) == 0:
+                        len(set(n.outputs) - graph_set) == 0 and \
+                        len(graph_set) < MAX_GRAPH:
                     # not output node should be included in graph
                     graph_set.add(n)    # add to graph set, already check before in walking
                     for i in n.inputs:
@@ -490,7 +494,8 @@ class GraphSpliter(object):
                     if n not in dead and \
                             self.is_route_or_support(n) and \
                             not any([ref.ref(t, n) for t in input_set]) and \
-                            not any([ref.ref(n, t) for t in output_set]):
+                            not any([ref.ref(n, t) for t in output_set]) and \
+                            len(graph_set) < MAX_GRAPH:
                         graph_set.add(n)    # add to graph set, already check before in walking
                         for i in n.inputs:
                             if i not in walked:
@@ -516,7 +521,8 @@ class GraphSpliter(object):
                     if n not in dead and \
                             self.is_route_or_support(n) and \
                             not any([ref.ref(t, n) for t in input_set]) and \
-                            not any([ref.ref(n, t) for t in output_set]):
+                            not any([ref.ref(n, t) for t in output_set]) and \
+                            len(graph_set) < MAX_GRAPH:
                         graph_set.add(n)    # add to graph set, already check before in walking
                         for i in n.inputs:
                             if i not in walked:

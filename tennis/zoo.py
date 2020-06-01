@@ -51,6 +51,7 @@ class Name(object):
         softmax = "softmax"
         concat = "concat"
         flatten = "flatten"
+        flatten2d = "flatten2d"
         to_float = "to_float"
         pooling2d = "pooling2d"
         pooling2d_v2 = "pooling2d_v2"
@@ -206,14 +207,16 @@ def transpose(name, x, permute=None):
     return node
 
 
-def reshape_v2(name, x, shape):
+def reshape_v2(name, x, shape, force=False):
     assert isinstance(x, Node)
 
-    try:
-        const_shape = to_const(shape, "shape")
-        return reshape(name, x, const_shape)
-    except:
-        pass
+    # force means try use v2 node
+    if not force:
+        try:
+            const_shape = to_const(shape, "shape")
+            return reshape(name, x, const_shape)
+        except:
+            pass
 
     shape = to_node(shape, "shape", dtype=numpy.int32, device=device.CPU)
 
@@ -669,6 +672,13 @@ def concat(name, inputs, dim):
 def flatten(name, x, dim=1):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name=Name.Layer.flatten, inputs=[x, ])
+    node.set(Name.dim, dim, numpy.int32)
+    return node
+
+
+def flatten2d(name, x, dim=1):
+    assert isinstance(x, Node)
+    node = menu.op(name=name, op_name=Name.Layer.flatten2d, inputs=[x, ])
     node.set(Name.dim, dim, numpy.int32)
     return node
 

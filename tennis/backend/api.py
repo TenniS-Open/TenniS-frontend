@@ -694,12 +694,12 @@ class ImageFilter(object):
         _C.ts_api_check_bool(_C.ts_ImageFilter_scale(self, scale))
 
     def sub_mean(self, mean):
-        # type: (float) -> None
+        # type: (Union[float, List[float], Tuple[float]]) -> None
         c_array, c_len, _ = _to_ctypes_array(mean, _C.c_float)
         _C.ts_api_check_bool(_C.ts_ImageFilter_sub_mean(self, c_array, c_len))
 
     def div_std(self, std):
-        # type: (float) -> None
+        # type: (Union[float, List[float], Tuple[float]]) -> None
         c_array, c_len, _ = _to_ctypes_array(std, _C.c_float)
         _C.ts_api_check_bool(_C.ts_ImageFilter_div_std(self, c_array, c_len))
 
@@ -1142,14 +1142,14 @@ def RegisterOperator(cls, device, op):
                 obj = _C.cast(obj, _C.c_void_p)
                 c_void_ptr = obj.value
 
-                if c_void_ptr in _OperatorPool:
-                    del _OperatorPool[c_void_ptr]
-
                 p_pyobj = _C.cast(obj, _C.POINTER(_C.py_object))
                 obj = p_pyobj.contents.value
 
                 if isinstance(obj, Operator):
                     obj.dispose()
+
+                if c_void_ptr in _OperatorPool:
+                    del _OperatorPool[c_void_ptr]
             return
         except Exception as e:
             import traceback

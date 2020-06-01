@@ -127,7 +127,7 @@ def clone_node(node, cache=None, tips=None):
         v = node.params[k]
         dolly.set(k, copy.copy(v))
 
-    dolly_inputs = clone_graph(node.inputs, cache=cache, tips=tips)
+    dolly_inputs = [cache[node] if node in cache else clone_node(node, cache=cache, tips=tips) for node in node.inputs]
     Node.Link(dolly, dolly_inputs)
 
     cache[node] = dolly
@@ -141,7 +141,7 @@ def clone_graph(nodes, cache=None, tips=None):
         cache = {}
     if tips is None:
         tips = {}
-    return [clone_node(node, cache=cache, tips=tips) for node in nodes]
+    return [cache[node] if node in cache else clone_node(node, cache=cache, tips=tips) for node in nodes]
 
 
 def clone_bubble(node):
