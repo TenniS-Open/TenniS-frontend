@@ -1057,7 +1057,8 @@ def convert_detection_output(layer, params, input_nodes, output_names):
     assert len(output_names) == 1
 
     x = input_nodes[0]
-    feat = input_nodes[1]
+    y = input_nodes[1]
+    z = input_nodes[2]
     node_name = output_names[0]
 
     layer_param = layer.detection_output_param
@@ -1075,7 +1076,7 @@ def convert_detection_output(layer, params, input_nodes, output_names):
     keep_top_k = message_getattr(layer_param, "keep_top_k", -1)  # int32
     confidence_threshold = message_getattr(layer_param, "confidence_threshold", 0.01)   # float
 
-    node = ts.menu.op(node_name, "detection_output", [x, feat])
+    node = ts.menu.op(node_name, "detection_output", [x, y, z])
     node.set("num_classes", num_classes, numpy.uint32)
     node.set("share_location", share_location, numpy.bool)
     node.set("background_label_id", background_label_id, numpy.int32)
