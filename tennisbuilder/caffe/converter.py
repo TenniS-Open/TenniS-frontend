@@ -14,6 +14,8 @@ from tennis import orz
 from collections import OrderedDict
 import numpy
 
+from typing import List, Tuple, Dict, Optional, Iterable
+
 
 def blob2numpy(blob):
     # type: (caffe.BlobProto) -> numpy.ndarray
@@ -134,9 +136,6 @@ def convert(prototxt, caffemodel, output_file,
         for top in layer.top:
             add_blob_count(top)
 
-    if input_layer_names is None:
-        input_layer_names = {}
-
     # for input layer
     for i in range(len(deploy_input_name)):
         top = deploy_input_name[i]
@@ -152,7 +151,7 @@ def convert(prototxt, caffemodel, output_file,
         blob2nodes[top] = node
 
         # collect inputs
-        input_layer_names[node_name] = input_node
+        input_name_node_map[node_name] = input_node
 
     # for each layer
     for layer in layers:
@@ -196,7 +195,7 @@ def convert(prototxt, caffemodel, output_file,
     inputs = None
     if input_layer_names is not None:
         inputs = []
-        for input_layer_name in input_layer_names.keys():
+        for input_layer_name in input_layer_names:
             if input_layer_name not in input_name_node_map:
                 raise Exception("There is no input named: {}".format(input_layer_name))
             inputs.append(input_name_node_map[input_layer_name])
@@ -1023,16 +1022,16 @@ def convert_prior_box(layer, params, input_nodes, output_names):
 
     layer_param = layer.prior_box_param
 
-    min_size = list(layer_param.min_size)
-    max_size = list(layer_param.max_size)
-    aspect_ratio = list(layer_param.aspect_ratio)
+    min_size = list(layer_param.min_size)   # list[float]
+    max_size = list(layer_param.max_size)   # list[float]
+    aspect_ratio = list(layer_param.aspect_ratio)   #list[float]
 
-    flip = message_getattr(layer_param, "flip", True)
-    clip = message_getattr(layer_param, "clip", False)
+    flip = message_getattr(layer_param, "flip", True)   # bool
+    clip = message_getattr(layer_param, "clip", False)  # bool
 
-    variance = list(layer_param.variance)
+    variance = list(layer_param.variance)   # float
 
-    offset = message_getattr(layer_param, "offset", 0.5)
+    offset = message_getattr(layer_param, "offset", 0.5)    # float
 
     node = ts.menu.op(node_name, "prior_box", [x, feat])
     node.set("min_size", min_size, numpy.float32)
@@ -1047,3 +1046,49 @@ def convert_prior_box(layer, params, input_nodes, output_names):
 
 
 register_layer_converter("PriorBox", convert_prior_box)
+
+
+def convert_detection_output(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 3
+    assert len(params) == 0
+    assert len(output_names) == 1
+
+    x = input_nodes[0]
+    feat = input_nodes[1]
+    node_name = output_names[0]
+
+    layer_param = layer.detection_output_param
+    nms_param = layer_param.nms_param
+
+    num_classes = layer_param.num_classes   # uint32
+    share_location = message_getattr(layer_param, "share_location", True)   # bool
+    background_label_id = message_getattr(layer_param, "background_label_id", 0)   # int32
+
+    nms_threshold = message_getattr(nms_param, "nms_threshold", 0.3)    # float
+    nms_top_k = message_getattr(nms_param, "top_k", 1000)    # int32
+    nms_eta = message_getattr(nms_param, "eta", 1.0)    # float
+
+    code_type = message_getattr(layer_param, "code_type", 1)    # 1=CORNER, 2=CENTER_SIZE, 3=CORNER_SIZE
+    keep_top_k = message_getattr(layer_param, "keep_top_k", -1)  # int32
+    confidence_threshold = message_getattr(layer_param, "confidence_threshold", 0.01)   # float
+
+    node = ts.menu.op(node_name, "detection_output", [x, feat])
+    node.set("num_classes", num_classes, numpy.uint32)
+    node.set("share_location", share_location, numpy.bool)
+    node.set("background_label_id", background_label_id, numpy.int32)
+
+    node.set("nms_threshold", nms_threshold, numpy.float32)
+    node.set("nms_top_k", nms_top_k, numpy.int32)
+    node.set("nms_eta", nms_eta, numpy.float32)
+
+    node.set("code_type", code_type, numpy.int32)
+    node.set("keep_top_k", keep_top_k, numpy.int32)
+    node.set("confidence_threshold", confidence_threshold, numpy.float32)
+
+    return node,
+
+
+register_layer_converter("DetectionOutput", convert_detection_output)
