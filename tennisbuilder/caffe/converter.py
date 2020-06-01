@@ -54,7 +54,7 @@ def convert(prototxt, caffemodel, output_file,
         from google.protobuf import text_format
         binary = file_prototxt.read()
         text = binary.decode("utf-8")
-        text_format.Parse(text, net)
+        text_format.Parse(text, net, allow_unknown_field=True)
     params = caffe.NetParameter()
     with open(caffemodel, "rb") as file_caffemodel:
         binary = file_caffemodel.read()
@@ -134,6 +134,9 @@ def convert(prototxt, caffemodel, output_file,
         for top in layer.top:
             add_blob_count(top)
 
+    if input_layer_names is None:
+        input_layer_names = {}
+
     # for input layer
     for i in range(len(deploy_input_name)):
         top = deploy_input_name[i]
@@ -193,7 +196,7 @@ def convert(prototxt, caffemodel, output_file,
     inputs = None
     if input_layer_names is not None:
         inputs = []
-        for input_layer_name in input_layer_names:
+        for input_layer_name in input_layer_names.keys():
             if input_layer_name not in input_name_node_map:
                 raise Exception("There is no input named: {}".format(input_layer_name))
             inputs.append(input_name_node_map[input_layer_name])
@@ -951,3 +954,96 @@ def convert_power_layer(layer, params, input_nodes, output_names):
 
 
 register_layer_converter("Power", convert_power_layer)
+
+
+def convert_permute(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 1
+    assert len(params) == 0
+    assert len(output_names) == 1
+
+    x = input_nodes[0]
+    node_name = output_names[0]
+
+    layer_param = layer.permute_param
+
+    order = list(layer_param.order)
+    print("--##    order: {}".format(order))
+
+    node = ts.zoo.transpose(node_name, x, permute=order)
+
+    return node,
+
+
+register_layer_converter("Permute", convert_permute)
+
+
+def convert_flatten(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 1
+    assert len(params) == 0
+    assert len(output_names) == 1
+
+    x = input_nodes[0]
+    node_name = output_names[0]
+
+    layer_param = layer.flatten_param
+
+    axis = message_getattr(layer_param, "axis", 1)
+    end_axis = message_getattr(layer_param, "end_axis", -1)
+    print("--##    axis: {}".format(axis))
+    print("--##    end_axis: {}".format(end_axis))
+
+    if end_axis != -1:
+        raise NotImplementedError(layer)
+
+    node = ts.zoo.flatten(node_name, x, dim=axis)
+
+    return node,
+
+
+register_layer_converter("Flatten", convert_flatten)
+
+
+def convert_prior_box(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 2
+    assert len(params) == 0
+    assert len(output_names) == 1
+
+    x = input_nodes[0]
+    feat = input_nodes[1]
+    node_name = output_names[0]
+
+    layer_param = layer.prior_box_param
+
+    min_size = list(layer_param.min_size)
+    max_size = list(layer_param.max_size)
+    aspect_ratio = list(layer_param.aspect_ratio)
+
+    flip = message_getattr(layer_param, "flip", True)
+    clip = message_getattr(layer_param, "clip", False)
+
+    variance = list(layer_param.variance)
+
+    offset = message_getattr(layer_param, "offset", 0.5)
+
+    node = ts.menu.op(node_name, "prior_box", [x, feat])
+    node.set("min_size", min_size, numpy.float32)
+    node.set("max_size", max_size, numpy.float32)
+    node.set("aspect_ratio", aspect_ratio, numpy.float32)
+    node.set("flip", flip, numpy.bool)
+    node.set("clip", clip, numpy.bool)
+    node.set("variance", variance, numpy.float32)
+    node.set("offset", offset, numpy.float32)
+
+    return node,
+
+
+register_layer_converter("PriorBox", convert_prior_box)
