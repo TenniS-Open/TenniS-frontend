@@ -840,7 +840,11 @@ def convert_concat_layer(layer, params, input_nodes, output_names):
     inputs = input_nodes
     node_name = output_names[0]
 
-    node = ts.zoo.concat(node_name, inputs=inputs, dim=1)
+    param = layer.concat_param
+
+    axis = message_getattr(param, "axis", 1)
+
+    node = ts.zoo.concat(node_name, inputs=inputs, dim=axis)
 
     return node,
 
@@ -1016,8 +1020,8 @@ def convert_prior_box(layer, params, input_nodes, output_names):
     assert len(params) == 0
     assert len(output_names) == 1
 
-    x = input_nodes[0]
-    feat = input_nodes[1]
+    feat = input_nodes[0]
+    img = input_nodes[1]
     node_name = output_names[0]
 
     layer_param = layer.prior_box_param
@@ -1033,7 +1037,7 @@ def convert_prior_box(layer, params, input_nodes, output_names):
 
     offset = message_getattr(layer_param, "offset", 0.5)    # float
 
-    node = ts.menu.op(node_name, "prior_box", [x, feat])
+    node = ts.menu.op(node_name, "prior_box", [feat, img])
     node.set("min_size", min_size, numpy.float32)
     node.set("max_size", max_size, numpy.float32)
     node.set("aspect_ratio", aspect_ratio, numpy.float32)
@@ -1052,13 +1056,10 @@ def convert_detection_output(layer, params, input_nodes, output_names):
     # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
 
-    assert len(input_nodes) == 3
+    assert 3 <= len(input_nodes) <= 4
     assert len(params) == 0
     assert len(output_names) == 1
 
-    x = input_nodes[0]
-    y = input_nodes[1]
-    z = input_nodes[2]
     node_name = output_names[0]
 
     layer_param = layer.detection_output_param
@@ -1074,9 +1075,10 @@ def convert_detection_output(layer, params, input_nodes, output_names):
 
     code_type = message_getattr(layer_param, "code_type", 1)    # 1=CORNER, 2=CENTER_SIZE, 3=CORNER_SIZE
     keep_top_k = message_getattr(layer_param, "keep_top_k", -1)  # int32
-    confidence_threshold = message_getattr(layer_param, "confidence_threshold", 0.01)   # float
+    confidence_threshold = message_getattr(layer_param, "confidence_threshold", 1e-5)   # float
+    variance_encoded_in_target = message_getattr(layer_param, "variance_encoded_in_target", False)   # bool
 
-    node = ts.menu.op(node_name, "detection_output", [x, y, z])
+    node = ts.menu.op(node_name, "detection_output", input_nodes)
     node.set("num_classes", num_classes, numpy.uint32)
     node.set("share_location", share_location, numpy.bool)
     node.set("background_label_id", background_label_id, numpy.int32)
@@ -1088,6 +1090,7 @@ def convert_detection_output(layer, params, input_nodes, output_names):
     node.set("code_type", code_type, numpy.int32)
     node.set("keep_top_k", keep_top_k, numpy.int32)
     node.set("confidence_threshold", confidence_threshold, numpy.float32)
+    node.set("variance_encoded_in_target", variance_encoded_in_target, numpy.bool)
 
     return node,
 
