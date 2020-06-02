@@ -913,7 +913,11 @@ def convert_softmax_layer(layer, params, input_nodes, output_names):
     x = input_nodes[0]
     node_name = output_names[0]
 
-    node = ts.zoo.softmax(node_name, x=x, dim=1)
+    layer_param = layer.softmax_param
+
+    axis = message_getattr(layer_param, "axis", 1)
+
+    node = ts.zoo.softmax(node_name, x=x, dim=axis)
 
     return node,
 
