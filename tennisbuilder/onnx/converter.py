@@ -196,12 +196,10 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         raise Exception("Can not load {}:{} to onnx model".format(type(input_file), input_file))
 
     if check_graph:
-        # onnx.checker.check_graph(onnx_model.graph)
-        pass
+        onnx.checker.check_graph(onnx_model.graph)
     else:
         try:
-            # onnx.checker.check_graph(onnx_model.graph)
-            pass
+            onnx.checker.check_graph(onnx_model.graph)
         except Exception as e:
             import sys
             sys.stderr.write("[WARNING]: Check graph failed with: {}\n".format(e))
