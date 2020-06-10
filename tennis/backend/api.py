@@ -782,6 +782,15 @@ class ImageFilter(object):
         _C.ts_api_check_pointer(module)
         return Module(module)
 
+    def __call__(self, image):
+        # type: (numpy.ndarray) -> numpy.ndarray
+        arg = Tensor(image)
+        out = self.run(arg)
+        arg.dispose()
+        ret = out.numpy
+        out.dispose()
+        return ret
+
 
 ResizeMethod = ImageFilter.ResizeMethod
 
