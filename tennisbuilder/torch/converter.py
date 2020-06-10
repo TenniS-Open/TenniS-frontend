@@ -12,12 +12,14 @@ from ..onnx import converter as onnx_converter
 import tempfile
 
 
-def convert_by_onnx(input_module, output_file, input, temp_onnx=None):
+def convert_by_onnx(input_module, output_file, input, temp_onnx=None, opset_version=None):
     """
     convert troch model to tsm
     :param input_module: torch.nn.Module or param can be parsed to torch.load(param)
     :param output_file: str of path to file
     :param input: list of tuple or ts.Node
+    :param temp_onnx: temp file
+    :param opset_version: onnx opset version
     :return: ts.Module
     """
     torch_model = None
@@ -48,9 +50,9 @@ def convert_by_onnx(input_module, output_file, input, temp_onnx=None):
     if temp_onnx_file is None:
         temp_onnx_file = tempfile.mktemp()
 
-    convert_onnx(torch_model, temp_onnx_file, input=input)
+    convert_onnx(torch_model, temp_onnx_file, input=input, opset_version=opset_version)
 
-    return onnx_converter.convert(temp_onnx_file, output_file)
+    return onnx_converter.convert(temp_onnx_file, output_file, check_graph=False)
 
 
 def convert(input_module, output_file, input):

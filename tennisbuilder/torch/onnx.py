@@ -1,12 +1,13 @@
 import torch
 
 
-def convert(input_module, output_file, input, verbose=False):
+def convert(input_module, output_file, input, verbose=False, opset_version=None):
     """
     :param input_module:
     :param output_file:
     :param input: tuple of input shape
     :param verbose:
+    :param opset_version:
     :return:
     """
     torch_model = None
@@ -34,7 +35,8 @@ def convert(input_module, output_file, input, verbose=False):
     dummy_input = dummy_input[0]
     torch.onnx.export(torch_model, dummy_input, output_file, verbose=verbose,
                       operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
-                      export_params=True, keep_initializers_as_inputs=True)
+                      export_params=True, keep_initializers_as_inputs=True,
+                      opset_version=opset_version)
 
     print("============ Summary ============")
     if isinstance(input_module, str):
