@@ -70,7 +70,7 @@ def dynamic_padding_same(input_size, static_padding, ksize, stride, dilation):
     half_padding_width = padding_width // 2
 
     dynamic_padding.top = static_padding.top + half_padding_height
-    dynamic_padding.left = static_padding.left + half_padding_height
+    dynamic_padding.left = static_padding.left + half_padding_width
     dynamic_padding.bottom = static_padding.bottom + (padding_height - half_padding_height)
     dynamic_padding.right = static_padding.right + (padding_width - half_padding_width)
 

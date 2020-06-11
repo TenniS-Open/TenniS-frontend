@@ -201,8 +201,11 @@ class EltwiseInferer(object):
         b = inputs[1]
         dtype = a.dtype
         if _valid_dims(a) and _valid_dims(b):
-            c = numpy.zeros(a.shape) + numpy.zeros(b.shape)
-            c = c.shape
+            try:
+                c = numpy.zeros(a.shape) + numpy.zeros(b.shape)
+                c = c.shape
+            except:
+                return None
             # return NodeShape(c.shape, a.dtype)
         else:
             a = a.shape
