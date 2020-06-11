@@ -27,14 +27,21 @@ def register_layer_converter(layer, converter):
     layer2converter[layer] = converter
 
 
+def convert_v2(sess, inputs, outputs, output_file, debug=False):
+    with sess.as_default():
+        inputs = [sess.graph.get_tensor_by_name(s) for s in inputs]
+        outputs = [sess.graph.get_tensor_by_name(s) for s in outputs]
+        return convert(sess.graph, inputs, outputs, output_file, debug=debug)
+
+
 def convert(graph, inputs, outputs, output_file, debug=False):
     if inputs is None:
         raise Exception("param #2 inputs must be set.")
     if outputs is None:
         raise Exception("param #3 outputs must be set.")
-    if not isinstance(inputs, list) or not isinstance(inputs, tuple):
+    if not isinstance(inputs, (list, tuple)):
         inputs = (inputs, )
-    if not isinstance(outputs, list) or not isinstance(outputs, tuple):
+    if not isinstance(outputs, (list, tuple)):
         outputs = (outputs, )
 
     set_no_log_converter = {
@@ -1115,7 +1122,8 @@ def convert_resize_nearest(tf_node, inputs):
         raise NotImplementedError("half_pixel_centers = {}".format(half_pixel_centers))
 
     if align_corners:
-        raise NotImplementedError("align_corners = {}".format(align_corners))
+        # raise NotImplementedError("align_corners = {}".format(align_corners))
+        print("[WARNING] NotImplementedError: align_corners = {}".format(align_corners))
 
     x = inputs[0]
     size = inputs[1]

@@ -7,6 +7,7 @@ author: kier
 import tennis as ts
 import numpy
 import copy
+from typing import List, Tuple, Optional
 
 class Name(object):
     class Layer(object):
@@ -142,6 +143,29 @@ def map_transpose(x):
     return None
 
 
+def map_resize2d(x):
+    # type: (ts.Node) -> ts.Node
+    assert x.op == "_resize2d"
+
+    chw_input = list(x.inputs)
+    chw_input[0] = nhwc2nchw(chw_input[0], name=chw_input[0].name + "_nchw")
+
+    size4d = chw_input[1]
+    if size4d.op == ts.Node.Const:
+        size4d_data = numpy.asarray(size4d.get("value"))
+        chw_size4d = numpy.asarray(size4d_data[[0, 3, 1, 2]], dtype=numpy.int32)
+        chw_input[1] = ts.menu.data(name=size4d.name + "_nchw", value=chw_size4d, device=ts.device.CPU)
+    else:
+        chw_size4d = ts.zoo.dimsuffle(name=size4d.name + "_nchw", x=size4d, dim=0, shuffle=[0, 3, 1, 2])
+        chw_input[1] = chw_size4d
+
+    x = ts.graph.clone_bubble(x)
+    ts.Node.Link(x, chw_input)
+    x.name = x.name + "_nchw"
+
+    return x
+
+
 supported_map = {
     Name.Layer.nchw2nhwc: map_nchw2nchw_to_nchw,
     "_copy": map_copy_to_nchw,
@@ -159,13 +183,13 @@ supported_map = {
     "concat": map_concat,
     "reduce_sum": map_reduce_sum,
     "_transpose": map_transpose,
+    "_resize2d": map_resize2d,
 }
 
 unsupported_set = {
     Name.Layer.nhwc2nchw,
     ts.Node.Parameter,
     ts.Node.Const,
-    "_resize2d",
     "_transpose",
 }
 
