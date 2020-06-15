@@ -9,6 +9,38 @@ import tennis as ts
 import tensorflow as tf
 import numpy
 from . import zipper
+from typing import List
+
+from tennisfence.fence import Fence
+from tennisfence.metanode import MetaNode
+
+
+def convert_transpose_to_tmpnode(node):
+    # type (ts.Node) -> Optional[ts.Node]
+    """
+    if x.op == Name.Layer.nhwc2nchw:
+        x.op = ts.zoo.Name.Layer.transpose
+        x.params[ts.zoo.Name.permute] = numpy.asarray([0, 3, 1, 2], dtype=numpy.int32)
+    elif x.op == Name.Layer.nchw2nhwc:
+        x.op = ts.zoo.Name.Layer.transpose
+        x.params[ts.zoo.Name.permute] = numpy.asarray([0, 2, 3, 1], dtype=numpy.int32)
+    """
+    permute = list(node.get("permute"))
+    if permute == [0, 3, 1, 2]:
+        return zipper.nhwc2nchw(node.inputs[0], name=node.name)
+    if permute == [0, 2, 3, 1]:
+        return zipper.nchw2nhwc(node.inputs[0], name=node.name)
+    return None
+
+
+def fix_not_control_transpose(inputs, outputs):
+    # type: (List[ts.Node], List[ts.Node]) -> (List[ts.Node], List[ts.Node])
+    fence = Fence()
+    fence.register(checker=MetaNode("_transpose"),
+                   converter=convert_transpose_to_tmpnode)
+
+    outputs, inputs = fence.convert(node=outputs, after=inputs)
+    return inputs, outputs
 
 
 def tensor_to_numpy(x):
@@ -167,6 +199,10 @@ def convert(graph, inputs, outputs, output_file, debug=False):
         input_ts_nodes.append(map_tf_operation_index_ts_node[operation_index])
 
     # print input_ts_nodes
+    """
+    convert tranpose to nchw and nhwc node
+    """
+    input_ts_nodes, output_ts_nodes = fix_not_control_transpose(input_ts_nodes, output_ts_nodes)
 
     """
     Reduce nchw operators

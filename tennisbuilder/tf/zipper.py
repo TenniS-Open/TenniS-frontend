@@ -7,7 +7,8 @@ author: kier
 import tennis as ts
 import numpy
 import copy
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Dict, Optional
+
 
 class Name(object):
     class Layer(object):
@@ -262,7 +263,7 @@ def zipnode(x, ready_zipped=None, ready_nchw=None):
 
 
 def warp_node(x, ready=None):
-    # type: (ts.Node) -> ts.Node
+    # type: (ts.Node, Dict[ts.Node, ts.Node]) -> ts.Node
     """
     :param x:
     :param kwargs: may have ready, dict for parsed nodes
