@@ -256,7 +256,9 @@ class Tensor(object):
         numpy.ndarray or array object
         """
         if obj is not None:
-            np = numpy.ascontiguousarray(obj, dtype=None if dtype is None else DC.to_numpy_dtype(dtype=dtype))
+            np = numpy.asarray(obj, dtype=None if dtype is None else DC.to_numpy_dtype(dtype=dtype))
+            original_shape = np.shape
+            np = numpy.ascontiguousarray(np).reshape(original_shape)
             dtype = np.dtype
 
             if shape is not None:
@@ -1117,7 +1119,7 @@ class Operator(object):
         """
         :param args:
         :param context:
-        :return: list of tuple like [(FLOAT32, (1, 3, 4, 4)), (INT32, (1, 2))]
+        :return: list of numpy.ndarray or Tensor
         """
         raise NotImplementedError
 
@@ -1197,6 +1199,10 @@ def RegisterOperator(cls, device, op):
                 argc = int(argc)
                 args = [Tensor(argv[i], borrow=True) for i in range(argc)]
                 out = obj.run(args, OperatorContext(context, borrow=True))
+                if isinstance(out, numpy.ndarray):
+                    out = [out]
+                elif isinstance(out, Tensor):
+                    out = [out]
                 if not isinstance(out, (list, tuple)):
                     out = [out]
                 out = [Tensor(t) for t in out]
