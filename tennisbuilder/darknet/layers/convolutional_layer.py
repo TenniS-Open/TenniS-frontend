@@ -14,12 +14,12 @@ import math
 
 def convolutional_out_height(l):
     # type: (Layer) -> int
-    return (l.h + 2*l.pad - l.size) / l.stride + 1
+    return (l.h + 2*l.pad - l.size) // l.stride + 1
 
 
 def convolutional_out_width(l):
     # type: (Layer) -> int
-    return (l.w + 2*l.pad - l.size) / l.stride + 1
+    return (l.w + 2*l.pad - l.size) // l.stride + 1
 
 
 def make_convolutional_layer(batch, h, w, c, n, groups, size, stride, padding, activation, batch_normalize,
@@ -46,7 +46,7 @@ def make_convolutional_layer(batch, h, w, c, n, groups, size, stride, padding, a
     l.biases = None         # calloc(n, sizeof(float));
     l.bias_updates = None   # calloc(n, sizeof(float));
 
-    l.nweights = c/groups*n*size*size
+    l.nweights = c//groups*n*size*size
     l.nbiases = n
 
     # float scale = 1./sqrt(size*size*c);
@@ -121,7 +121,7 @@ def parse_convolutional(options, params):
     padding = option_find_int_quiet(options, "padding",0)
     groups = option_find_int_quiet(options, "groups", 1)
     if pad != 0:
-        padding = size/2
+        padding = size // 2
 
     activation_s = option_find_str(options, "activation", "logistic")
     activation = get_activation(activation_s)
