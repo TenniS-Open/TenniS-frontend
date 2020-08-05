@@ -8,6 +8,7 @@ sys.path.append(RuntimeRoot)
 
 from tennis.backend.api import *
 import tennis
+from typing import List
 
 import cv2
 import random
@@ -39,6 +40,7 @@ def build_test_module(path):
 
 class CustomOp(Operator):
     def __init__(self):
+        super(CustomOp, self).__init__()
         self.alpha = 1
         self.beta = 1
         self.gama = 0
@@ -50,7 +52,8 @@ class CustomOp(Operator):
         }
         self.binary = self.register_binary["mul"]
 
-    def init(self, params, context):  # type: (OperatorParams, OperatorContext) -> None
+    def init(self, params, context):
+        # type: (OperatorParams, OperatorContext) -> None
         if "alpha" in params:
             self.alpha = params["alpha"].numpy
         if "beta" in params:
@@ -61,23 +64,25 @@ class CustomOp(Operator):
         assert binary in self.register_binary
         self.binary = self.register_binary[binary]
 
-    def run(self, args, context):  # type: (List[Tensor], OperatorContext) -> Union[Tensor, List[Tensor]]
+    def run(self, args, context):
+        # type: (List[Tensor], OperatorContext) -> Union[Tensor, List[Tensor]]
         assert len(args) == 2
         a = args[0].numpy
         b = args[1].numpy
         c = self.binary(self.alpha * a, self.beta * b) + self.gama
         return Tensor(c)
 
+
 RegisterOperator(CustomOp, "cpu", "CustomOp")
 
 
 if __name__ == "__main__":
+    print("CustomOp(a, b) = alpha * a <binary> beta * b + gama")
+
     build_test_module("customop.tsm")
 
-    device = Device()
-
     module = Module.Load("customop.tsm")
-
+    device = Device()
     workbench = Workbench.Load(module=module, device=device)
 
     a = 3
