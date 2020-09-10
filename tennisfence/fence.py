@@ -1,4 +1,4 @@
-from typing import CallableMeta, Union, List, Dict, Set, Tuple
+from typing import Callable, Union, List, Dict, Set, Tuple
 
 import tennis as ts
 
@@ -46,7 +46,7 @@ class Fence(object):
         self.__fence.clear()
 
     def register(self, checker, converter, priority=0):
-        # type: (CallableMeta, CallableMeta, int) -> None
+        # type: (Callable, Callable, int) -> None
         """
         :param checker: (Node) -> bool, check if Node is target node
         :param converter: (Node) -> Union[Node, None], None for not converted, Node for converted Node

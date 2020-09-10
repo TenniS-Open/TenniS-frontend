@@ -1,4 +1,4 @@
-from typing import CallableMeta
+from typing import Callable
 
 
 from tennisfence.metanode import *
@@ -316,7 +316,7 @@ class GraphSpliter(object):
         return self.__single_output
 
     def support(self, checker):
-        # type: (Union[List[Union[str, CallableMeta]], str, CallableMeta]) -> GraphSpliter
+        # type: (Union[List[Union[str, Callable]], str, Callable]) -> GraphSpliter
         if not isinstance(checker, (tuple, list)):
             checker = [checker, ]
         for i in checker:
@@ -328,7 +328,7 @@ class GraphSpliter(object):
                 raise ValueError("param must be str of check function, or list of above")
 
     def route(self, checker):
-        # type: (Union[List[Union[str, CallableMeta]], str, CallableMeta]) -> GraphSpliter
+        # type: (Union[List[Union[str, Callable]], str, Callable]) -> GraphSpliter
         if not isinstance(checker, (tuple, list)):
             checker = [checker, ]
         for i in checker:

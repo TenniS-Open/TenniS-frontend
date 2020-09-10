@@ -1,4 +1,4 @@
-from typing import CallableMeta, Union, List, Tuple, Set, SupportsInt, Dict
+from typing import Callable, Union, List, Tuple, Set, SupportsInt, Dict
 
 import numpy
 import tennis as ts
@@ -12,7 +12,7 @@ Tensor = Union[int, float, numpy.ndarray, ts.tensor.StringTensor, ts.tensor.Pack
 
 class MetaRule(object):
     def __init__(self, rule, msg=None):
-        # type: (CallableMeta, str) -> None
+        # type: (Callable, str) -> None
         if not callable(rule):
             raise ValueError("param 1 must be callable")
         self.__rule = rule
@@ -214,7 +214,7 @@ class _ListedMetaRule(MetaRule):
         return value
 
     def __init__(self, value, cmp, cmp_str="with"):
-        # type: (List[Union[int, float]], CallableMeta, str) -> None
+        # type: (List[Union[int, float]], Callable, str) -> None
 
         if not isinstance(value, (list, tuple)):
             raise MetaValueMismatch(type(value), "[list, tuple]", "param 1")
