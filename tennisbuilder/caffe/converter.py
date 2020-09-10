@@ -92,6 +92,15 @@ def convert(prototxt, caffemodel, output_file,
             input_shape = parser.blob_shape(net.input_shape[i])
             deploy_input_name.append(input_name)
             deploy_input_shape.append(input_shape)
+    elif len(net.input) > 0:
+        if len(net.input) > 1:
+            raise NotImplementedError("Use multi-inputs, please use InputParameter instead.")
+        if len(net.input_dim) != 4:
+            raise NotImplementedError("net.input_dim must be 4-dims, if need other dims, use InputParameter instead.")
+        input_name = net.input[0]
+        input_shape = list(map(int, list(net.input_dim)))
+        deploy_input_name.append(input_name)
+        deploy_input_shape.append(input_shape)
 
     def may_input_layer(converter):
         return orz.bind(converter,
@@ -1100,3 +1109,154 @@ def convert_detection_output(layer, params, input_nodes, output_names):
 
 
 register_layer_converter("DetectionOutput", convert_detection_output)
+
+
+def convert_deconvolution_layer(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 1
+    assert len(params) > 0
+    assert len(output_names) == 1
+
+    conv2d_name = "_conv2d_" + output_names[0]
+    bias_name = "_bias_" + output_names[0]
+    node_name = output_names[0]
+
+    layer_param = layer.convolution_param
+
+    bias_term = True
+    if layer_param.HasField("bias_term"):
+        bias_term = layer_param.bias_term
+
+    bias_blob = None    # [output_channels, ]
+    if bias_term:
+        assert len(params) > 1
+        bias_blob = blob2numpy(params[1])
+        print("--##    Bias shape: {}".format(bias_blob.shape))
+
+    # is [output_channels, input_channels / group, input_height, input_width]
+    weights_blob = blob2numpy(params[0])
+    print("--##    Weights shape: {}".format(weights_blob.shape))
+
+    force_nd_im2col = False
+    if layer_param.HasField("force_nd_im2col"):
+        force_nd_im2col = layer_param.force_nd_im2col
+    if force_nd_im2col:
+        raise NotImplementedError("force_nd_im2col = {}".format(force_nd_im2col))
+
+    padding = [message_getattr(layer_param, "pad_h", 0),
+               message_getattr(layer_param, "pad_w", 0)]
+
+    if len(layer_param.pad) > 0:
+        if len(layer_param.pad) == 1:
+            padding = [layer_param.pad[0], layer_param.pad[0]]
+        else:
+            assert len(layer_param.pad) == 2
+            padding = list(layer_param.pad)
+
+    stride = [message_getattr(layer_param, "stride_h", 1),
+              message_getattr(layer_param, "stride_w", 1)]
+
+    if len(layer_param.stride) > 0:
+        if len(layer_param.stride) == 1:
+            stride = [layer_param.stride[0], layer_param.stride[0]]
+        else:
+            assert len(layer_param.stride) == 2
+            stride = list(layer_param.stride)
+
+    dilation = [1, 1]
+
+    if len(layer_param.dilation) > 0:
+        if len(layer_param.dilation) == 1:
+            dilation = [layer_param.dilation[0], layer_param.dilation[0]]
+        else:
+            assert len(layer_param.dilation) == 2
+            dilation = list(layer_param.dilation)
+
+    print("--##    dilation: {}".format(dilation))
+    print("--##    pad: {}".format(padding))
+    print("--##    stride: {}".format(stride))
+
+    num_output = None
+    if layer_param.HasField("num_output"):
+        num_output = layer_param.num_output
+
+    kernel_size = [message_getattr(layer_param, "kernel_h", 0),
+                   message_getattr(layer_param, "kernel_w", 0)]
+
+    if len(layer_param.kernel_size) > 0:
+        if len(layer_param.kernel_size) == 1:
+            kernel_size = [layer_param.kernel_size[0], layer_param.kernel_size[0]]
+        else:
+            assert len(layer_param.kernel_size) == 2
+            kernel_size = list(layer_param.kernel_size)
+
+    print("--##    kernel_size: {}".format(kernel_size))
+
+    assert kernel_size[0] == weights_blob.shape[2] and kernel_size[1] == weights_blob.shape[3]
+
+    group = 1
+    if layer_param.HasField("group"):
+        group = layer_param.group
+        print("--##    group: {}".format(group))
+
+    # assert weights_blob.shape[0] == num_output convolution output
+    assert weights_blob.shape[1] * group == num_output
+
+    axis = 1
+    if layer_param.HasField("axis"):
+        axis = layer_param.axis
+
+    assert axis == 1
+
+    if group != 1 and weights_blob.shape[1] != 1:
+        raise NotImplementedError("group = {} with weights.shape[1] = {}".format(group, weights_blob.shape[1]))
+
+    is_conv2d = group == 1
+    assert is_conv2d
+
+    node = None
+
+    if is_conv2d:
+        node = ts.zoo.transpose_conv2d(conv2d_name, x=input_nodes[0], w=weights_blob, format=ts.zoo.Name.NCHW,
+                                       padding=[[0, 0], [0, 0], [padding[0], padding[0]], [padding[1], padding[1]]],
+                                       padding_value=0,
+                                       stride=[1, 1, stride[0], stride[1]],
+                                       dilation=[1, 1, dilation[0], dilation[1]])
+
+    if node is None:
+        raise NotImplementedError(layer)
+
+    if bias_blob is not None:
+        node = ts.zoo.add_bias(bias_name, x=node, b=bias_blob, format=ts.zoo.Name.NCHW)
+
+    node.name = node_name
+
+    return node,
+
+
+register_layer_converter("Deconvolution", convert_deconvolution_layer)
+
+
+def convert_crop_layer(layer, params, input_nodes, output_names):
+    # type: (caffe.LayerParameter, List[ts.Node], List[caffe.BlobProto], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer({}): {} ]=-".format(layer.type, layer.name, output_names))
+
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    x = input_nodes[0]
+    y = input_nodes[1]
+    node_name = output_names[0]
+
+    layer_param = layer.crop_param
+    axis = message_getattr(layer_param, "axis", 2)
+    offset = list(layer_param.offset)
+
+    node = ts.zoo.crop_to(name=node_name, x=x, y=y, axis=axis, offset=offset)
+
+    return node
+
+
+register_layer_converter("Crop", convert_crop_layer)
