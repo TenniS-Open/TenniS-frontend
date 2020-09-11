@@ -207,16 +207,14 @@ def transpose(name, x, permute=None):
     return node
 
 
-def reshape_v2(name, x, shape, force=False):
+def reshape_v2(name, x, shape):
     assert isinstance(x, Node)
 
-    # force means try use v2 node
-    if not force:
-        try:
-            const_shape = to_const(shape, "shape")
-            return reshape(name, x, const_shape)
-        except:
-            pass
+    try:
+        const_shape = to_const(shape, "shape")
+        return reshape(name, x, const_shape)
+    except:
+        pass
 
     shape = to_node(shape, "shape", dtype=numpy.int32, device=device.CPU)
 
@@ -676,13 +674,6 @@ def flatten(name, x, dim=1):
     return node
 
 
-def flatten2d(name, x, dim=1):
-    assert isinstance(x, Node)
-    node = menu.op(name=name, op_name=Name.Layer.flatten2d, inputs=[x, ])
-    node.set(Name.dim, dim, numpy.int32)
-    return node
-
-
 def to_float(name, x):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name=Name.Layer.to_float, inputs=[x, ])
@@ -833,7 +824,7 @@ def chunk(name, x, chunks, dim=0):
     node.set(Name.chunks, chunks, numpy.int32)
     node.set(Name.dim, dim, numpy.int32)
 
-    outputs = [menu.field(name=name + ":" + str(i), input=node, offset=i) for i in py_range(int(chunks))]
+    outputs = [menu.field(name=name + ":" + str(i), input=node, offset=i) for i in range(int(chunks))]
 
     return outputs
 

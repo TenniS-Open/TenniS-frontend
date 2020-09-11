@@ -30,8 +30,8 @@ def make_upsample_layer(batch, h, w, c, stride):
     if stride < 0:
         stride = -stride
         l.reverse = 1
-        l.out_w = w/stride
-        l.out_h = h/stride
+        l.out_w = w//stride
+        l.out_h = h//stride
 
     l.stride = stride
     l.outputs = l.out_w*l.out_h*l.out_c

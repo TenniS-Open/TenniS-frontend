@@ -20,7 +20,7 @@ import sys
 
 class ListOf(object):
     def __init__(self, n, cls=None):
-        self.__data = [None] * n
+        self.__data = [None] * int(n)
         if cls is not None:
             self.__data = [cls() for _ in self.__data]
         

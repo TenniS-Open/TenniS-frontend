@@ -17,6 +17,7 @@ class Name(object):
         pooling2d_padding = "_onnx_pooling2d_padding"
         gather = "gather"
         unsqueeze = "unsqueeze"
+        squeeze = "squeeze"
         gemm = "gemm"
 
     auto_pad = "auto_pad"
@@ -115,6 +116,18 @@ def unsqueeze(name, x, axes):
 
     # operator
     node = menu.op(name=name, op_name=Name.Layer.unsqueeze, inputs=[x, ])
+    node.set(Name.axes, axes, numpy.int32)
+
+    return node
+
+
+def squeeze(name, x, axes):
+    assert isinstance(x, Node)
+
+    axes = zoo.to_const(axes, "axes")
+
+    # operator
+    node = menu.op(name=name, op_name=Name.Layer.squeeze, inputs=[x, ])
     node.set(Name.axes, axes, numpy.int32)
 
     return node

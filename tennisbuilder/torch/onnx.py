@@ -35,8 +35,7 @@ def convert(input_module, output_file, input, verbose=False, opset_version=None)
     dummy_input = dummy_input[0]
     torch.onnx.export(torch_model, dummy_input, output_file, verbose=verbose,
                       operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
-                      export_params=True, keep_initializers_as_inputs=True,
-                      opset_version=opset_version)
+                      export_params=True)
 
     print("============ Summary ============")
     if isinstance(input_module, str):
