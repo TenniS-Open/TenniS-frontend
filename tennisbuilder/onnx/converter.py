@@ -1773,9 +1773,9 @@ def convert_constant_of_shape_layer(node, input_nodes, output_names):
     node_name = output_names[0]
 
     x = input_nodes[0]
-    value = 0
-    if Name.Attr.axis in attr_dict:
-        value = int(attr_dict[Name.Attr.value])
+    value = numpy.asarray(0, dtype=numpy.float32)
+    if "value" in attr_dict:
+        value = attr_dict["value"]
 
     ts_node = constant_of_shape_onnx(node_name,x=x,value=value)
 
@@ -1934,7 +1934,8 @@ def prelu_onnx(name, x, slope):
 def constant_of_shape_onnx(name, x, value):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name="onnx::constant_of_shape", inputs=[x, ])
-    node.set("value", value, numpy.float32)
+    # print( "***type:",type(value.dtype))
+    node.set("value", value)
 
     return node
 
