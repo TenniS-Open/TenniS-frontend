@@ -1079,4 +1079,17 @@ def sample2d_like(name, x, y, type=Type.resize2d_type.hard):
     return node
 
 
+def crop_to(name, x, y, axis=2, offset=None):
+    assert isinstance(x, Node)
+    assert isinstance(y, Node)
+
+    node = menu.op(name=name, op_name="crop_to", inputs=[x, y])
+    node.set("axis", axis, numpy.int32)
+    if offset is not None:
+        offset = to_const(offset, "offset")
+        node.set("offset", offset, numpy.int32)
+
+    return node
+
+
 
