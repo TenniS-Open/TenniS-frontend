@@ -27,7 +27,7 @@ def get_tensor_stack_passes():
         "eliminate_unused_initializer",
         # "extract_constant_to_initializer",
         "fuse_add_bias_into_conv",
-        "fuse_bn_into_conv",
+        # "fuse_bn_into_conv",
         "fuse_consecutive_concats",
         "fuse_consecutive_log_softmax",
         "fuse_consecutive_reduce_unsqueeze",
@@ -203,7 +203,8 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         except Exception as e:
             import sys
             sys.stderr.write("[WARNING]: Check graph failed with: {}\n".format(e))
-    onnx_model = optimizer.optimize(onnx_model, get_tensor_stack_passes())
+    # Well, onnx optimize has bug ALWAYS, disable now.
+    # onnx_model = optimizer.optimize(onnx_model, get_tensor_stack_passes())
 
     opset_domain = "ai.onnx"
     opset_version = 0
