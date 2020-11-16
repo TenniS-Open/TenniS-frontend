@@ -2073,6 +2073,27 @@ def infer_slice_v2(node, inputs):
 _register_shape_inferer("slice_v2", infer_slice_v2)
 
 
+def infer_floor(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 1
+
+    dtype = inputs[0].dtype
+    x_shape = list(inputs[0].shape)
+
+    x = _infer_value(node.inputs[0])
+
+    y_shape = x_shape
+
+    if x is not None:
+        y = numpy.floor(x, dtype=x.dtype)
+        node.set("#value", y)
+
+    return NodeShape(y_shape, dtype)
+
+
+_register_shape_inferer("floor", infer_floor)
+
+
 def infer_value(node, value=None):
     # type: (Node, object) -> Union[None, object, numpy.ndarray]
     return _infer_value(node, value)

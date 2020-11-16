@@ -38,6 +38,26 @@ def _convert_pooling2d_v2(node):
     return pooling2d
 
 
+def _convert_resize2d(node):
+    # type: (ts.Node) -> Union[None, ts.Node]
+    x = node.inputs[0]
+    size = node.inputs[1]
+
+    if size.op == ts.Node.Const:
+        return None
+
+    size = ts.inferer._infer_value(size)
+
+    if size is None:
+        return None
+
+    node_size = ts.menu.data(name=node.name + "_size", value=size, device=ts.device.CPU)
+
+    resize2d = ts.graph.clone_bubble(node)
+    ts.Node.Link(resize2d, [node.inputs[0], node_size])
+    return resize2d
+
+
 def _check_input_shape_dict_str_int_list(shape):
     # type: (Dict[str, Tuple[int]]) -> bool
     if not isinstance(shape, dict):
@@ -141,6 +161,10 @@ def freeze(outputs, inputs=None, input_shape=None):
           "#padding": HasSet,
           "#shape": GT([None, 0, 0, 0])}, {2: -1}),
     ]), _convert_depthwise_conv2d_v2)
+
+    fence.register(MetaGraph([
+        {"#op": "_resize2d"},
+    ]), _convert_resize2d)
 
     cache = {}
     outputs = fence.convert(outputs, cache)
