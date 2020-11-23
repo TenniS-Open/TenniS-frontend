@@ -50,7 +50,7 @@ def load_library(libname):
     os.environ["LIBRARTY_PATH"] = ALL_PATH_ENV
     os.environ["LD_LIBRARY_PATH"] = ALL_PATH_ENV
     os.environ["DYLD_LIBRARY_PATH"] = ALL_PATH_ENV
-    sys.path = ALL_PATH
+    # sys.path = ALL_PATH
 
     lib = None
     msg = None
@@ -77,6 +77,6 @@ def load_library(libname):
     os.environ["LIBRARTY_PATH"] = LIBRARTY_PATH
     os.environ["LD_LIBRARY_PATH"] = LD_LIBRARY_PATH
     os.environ["DYLD_LIBRARY_PATH"] = DYLD_LIBRARY_PATH
-    sys.path = SYS_PATH
+    # sys.path = SYS_PATH
 
     return lib, msg
