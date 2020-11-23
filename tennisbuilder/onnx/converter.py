@@ -1651,11 +1651,11 @@ def convert_slice_layer(node, input_nodes, output_names):
         # is Slice-1
         starts = attr_dict["starts"]
         ends = attr_dict["ends"]
-        starts = ts.zoo.to_node(starts, node_name + "_starts", device=ts.device.CPU, dtype=numpy.int32)
-        ends = ts.zoo.to_node(ends, node_name + "_ends", device=ts.device.CPU, dtype=numpy.int32)
+        starts = ts.zoo.to_node(starts, node_name + "_starts", device=ts.device.CPU, dtype=numpy.int64)
+        ends = ts.zoo.to_node(ends, node_name + "_ends", device=ts.device.CPU, dtype=numpy.int64)
         if "axes" in attr_dict:
             axes = attr_dict["axes"]
-            axes = ts.zoo.to_node(axes, node_name + "_axes", device=ts.device.CPU, dtype=numpy.int32)
+            axes = ts.zoo.to_node(axes, node_name + "_axes", device=ts.device.CPU, dtype=numpy.int64)
     elif len(input_nodes) >= 3 and len(input_nodes) <= 5:
         # is Slice-10 or Slice-11
         starts = input_nodes[1]
@@ -1812,6 +1812,31 @@ def convert_cast_layer(node, input_nodes, output_names):
 
 
 register_layer_converter("Cast", convert_cast_layer)
+
+
+def convert_floor(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    ts_node = ts.menu.op(node_name, "floor", [x])
+
+    return ts_node,
+
+
+register_layer_converter("Floor", convert_floor)
+
 
 
 
