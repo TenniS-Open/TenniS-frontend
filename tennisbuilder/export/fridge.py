@@ -13,6 +13,8 @@ def _convert_conv2d_v2(node):
     conv2d.set("padding", conv2d.get("#padding"))
     conv2d.clear("#padding")
     ts.Node.Link(conv2d, [node.inputs[0], node.inputs[2]])
+
+    print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, conv2d.op))
     return conv2d
 
 
@@ -23,6 +25,8 @@ def _convert_depthwise_conv2d_v2(node):
     conv2d.set("padding", conv2d.get("#padding"))
     conv2d.clear("#padding")
     ts.Node.Link(conv2d, [node.inputs[0], node.inputs[2]])
+
+    print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, conv2d.op))
     return conv2d
 
 
@@ -35,6 +39,8 @@ def _convert_pooling2d_v2(node):
     pooling2d.set("ksize", node.inputs[2].get("value"))
     pooling2d.set("stride", node.inputs[3].get("value"))
     ts.Node.Link(pooling2d, [node.inputs[0]])
+
+    print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, pooling2d.op))
     return pooling2d
 
 
@@ -55,7 +61,42 @@ def _convert_resize2d(node):
 
     resize2d = ts.graph.clone_bubble(node)
     ts.Node.Link(resize2d, [node.inputs[0], node_size])
+
+    print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, resize2d.op))
     return resize2d
+
+
+def convert_reshape_v2_to_v1(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    name = node.name
+    reshape_v2 = node
+    x = reshape_v2.inputs[0]
+    shape = reshape_v2.inputs[1]
+    assert isinstance(shape, ts.Node)
+
+    if shape.op == ts.Node.Const:
+        shape = shape.get("value")
+    elif shape.has("#value"):
+        shape = shape.get("#value")
+    else:
+        return None
+
+    neg_count = 0
+    for i in shape:
+        if i < 0:
+            neg_count += 1
+
+    if neg_count > 1:
+        return None
+
+    reshape = ts.zoo.reshape(name, x, shape)
+    if node.has("#shape"):
+        reshape.shape = node.shape
+    if node.has("#dtype"):
+        reshape.dtype = node.dtype
+
+    print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, reshape.op))
+    return reshape
 
 
 def _check_input_shape_dict_str_int_list(shape):
@@ -108,6 +149,32 @@ def _check_input_shape(shape):
     return shape
 
 
+def is_infered_const(node):
+    # type: (ts.Node) -> bool
+    assert isinstance(node, ts.Node)
+
+    if node.op == ts.Node.Const:
+        return False
+
+    return ts.inferer._infer_value(node) is not None
+
+
+def to_const(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    assert isinstance(node, ts.Node)
+
+    if node.op == ts.Node.Const:
+        return None
+
+    name = node.name
+    value = ts.inferer._infer_value(node)
+
+    if value is None:
+        return None
+
+    print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, ts.Node.Const))
+    return ts.menu.data(name=name, value=value)
+
 
 def freeze(outputs, inputs=None, input_shape=None):
     # type: (List[ts.Node], List[ts.Node], Union[List[Tuple[int]], Dict[str, Tuple[int]]]) -> Tuple
@@ -142,6 +209,7 @@ def freeze(outputs, inputs=None, input_shape=None):
     ts.inferer.infer(outputs)
 
     fence = Fence()
+    fence.register(is_infered_const, to_const)
     fence.register(MetaGraph([
         ts.Node.Const,     # weights
         ({"#op": "conv2d_v2",
@@ -165,6 +233,11 @@ def freeze(outputs, inputs=None, input_shape=None):
     fence.register(MetaGraph([
         {"#op": "_resize2d"},
     ]), _convert_resize2d)
+    fence.register(MetaNode({
+            "#op": "_reshape_v2",
+            "#shape": HasSet,
+            "#dtype": NE(0),
+        }), convert_reshape_v2_to_v1)
 
     cache = {}
     outputs = fence.convert(outputs, cache)
