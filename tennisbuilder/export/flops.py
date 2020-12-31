@@ -69,12 +69,12 @@ def check_node_io(node):
 
 
 def ignore_flops_counter(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     return 0
 
 
 def analysis(outputs, inputs, input_shape, freeze = True):
-    # type: Union[Tuple, List, ts.Node] -> int
+    # type: (Union[Tuple, List, ts.Node]) -> int
     if isinstance(outputs, ts.Node):
         outputs = [outputs]
     try:
@@ -120,7 +120,7 @@ _register_flops_counter_map("to_float", ignore_flops_counter)
 
 
 def flops_counter_of_conv2d(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     input_shape = _get_shape(node.inputs[0])
@@ -151,7 +151,7 @@ _register_flops_counter_map("conv2d_v2", flops_counter_of_conv2d)
 
 
 def flops_counter_of_add_bias(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     input_shape = _get_shape(node.inputs[0])
@@ -173,7 +173,7 @@ _register_flops_counter_map("add_bias", flops_counter_of_add_bias)
 
 
 def flops_counter_of_relu(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     input_shape = _get_shape(node.inputs[0])
@@ -193,7 +193,7 @@ _register_flops_counter_map("_reshape", ignore_flops_counter)
 
 
 def flops_counter_of_element(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     return numpy.prod(_get_shape(node))
@@ -206,7 +206,7 @@ _register_flops_counter_map("div", flops_counter_of_element)
 
 
 def flops_counter_of_gemm(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     A = _get_shape(node.inputs[0])
@@ -230,7 +230,7 @@ def flops_counter_of_gemm(node):
     return M * K * N * alpha + N * beta
 
 def flops_counter_of_inner_prod(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     A = _get_shape(node.inputs[0])
@@ -258,7 +258,7 @@ _register_flops_counter_map("gemm", flops_counter_of_gemm)
 
 
 def flops_counter_of_pool(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     input_shape = _get_shape(node.inputs[0])
@@ -272,7 +272,7 @@ _register_flops_counter_map("global_pooling2d", flops_counter_of_pool)
 
 
 def flops_counter_of_batch_norm(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -284,7 +284,7 @@ _register_flops_counter_map("batch_norm", flops_counter_of_batch_norm)
 
 
 def flops_counter_of_batch_scale(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -296,7 +296,7 @@ _register_flops_counter_map("batch_scale", flops_counter_of_batch_scale)
 
 
 def flops_counter_of_fused_batch_norm(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -320,7 +320,7 @@ _register_flops_counter_map("_expand", ignore_flops_counter)
 
 
 def flops_counter_of_limit(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -335,7 +335,7 @@ _register_flops_counter_map("_nhwc_center_crop2d", ignore_flops_counter)
 
 
 def flops_counter_of_sample(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -355,7 +355,7 @@ _register_flops_counter_map("_transpose", ignore_flops_counter)
 _register_flops_counter_map("abs", flops_counter_of_relu)
 
 def flops_counter_of_affine_sample2d(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -381,7 +381,7 @@ _register_flops_counter_map("crop_to", ignore_flops_counter)
 
 
 def flops_counter_of_depthwise_conv2d(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     input_shape = _get_shape(node.inputs[0])
@@ -420,7 +420,7 @@ _register_flops_counter_map("flatten2d", ignore_flops_counter)
 _register_flops_counter_map("floor", flops_counter_of_element)
 
 def flops_counter_of_force_gray(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
@@ -436,7 +436,7 @@ _register_flops_counter_map("gatherv2", ignore_flops_counter)
 _register_flops_counter_map("inner_prod", flops_counter_of_inner_prod)
 
 def flops_counter_of_norm(node):
-    # type: [ts.Node] -> int
+    # type: (ts.Node) -> int
     assert isinstance(node, ts.Node)
 
     x = _get_shape(node.inputs[0])
