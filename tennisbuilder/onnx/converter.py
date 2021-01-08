@@ -1838,5 +1838,91 @@ def convert_floor(node, input_nodes, output_names):
 register_layer_converter("Floor", convert_floor)
 
 
+def convert_equal_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
 
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    lhs = input_nodes[0]
+    rhs = input_nodes[1]
+
+    ts_node = ts.zoo.equal(node_name, lhs=lhs, rhs=rhs)
+
+    return ts_node,
+
+
+register_layer_converter("Equal", convert_equal_layer)
+
+
+def convert_softplus_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    ts_node = ts.zoo.softplus(node_name, x=x)
+
+    return ts_node,
+
+
+register_layer_converter("Softplus", convert_softplus_layer)
+
+
+def convert_where_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    assert len(input_nodes) == 3
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    cond = input_nodes[0]
+    x = input_nodes[1]
+    y = input_nodes[2]
+
+    ts_node = ts.zoo.where(node_name, cond=cond, x=x, y=y)
+
+    return ts_node,
+
+
+register_layer_converter("Where", convert_where_layer)
+
+
+def convert_constant_of_shape_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    value = None
+    if "value" in attr_dict:
+        value = attr_dict["value"]
+        print("--##    value: {}".format(value))
+
+    ts_node = ts.zoo.constant_of_shape(node_name, x=x, value=value)
+
+    return ts_node,
+
+
+register_layer_converter("ConstantOfShape", convert_constant_of_shape_layer)
 

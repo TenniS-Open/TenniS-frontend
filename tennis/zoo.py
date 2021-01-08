@@ -1101,4 +1101,42 @@ def crop_to(name, x, y, axis=2, offset=None):
     return node
 
 
+def equal(name, lhs, rhs):
+    assert isinstance(lhs, Node)
+    assert isinstance(rhs, Node)
 
+    node = menu.op(name=name, op_name="equal", inputs=[lhs, rhs])
+
+    return node
+
+
+def softplus(name, x):
+    assert isinstance(x, Node)
+
+    node = menu.op(name=name, op_name="softplus", inputs=[x, ])
+
+    return node
+
+
+def constant_of_shape(name, x, value=None):
+    assert isinstance(x, Node)
+
+    node = menu.op(name=name, op_name="constant_of_shape", inputs=[x, ])
+
+    value = to_const(value, "value")
+    if value is not None:
+        node.set("value", value, value.dtype)
+    else:
+        node.set("value", 0, numpy.float32)
+
+    return node
+
+
+def where(name, cond, x, y):
+    assert isinstance(cond, Node)
+    assert isinstance(x, Node)
+    assert isinstance(y, Node)
+
+    node = menu.op(name=name, op_name="where", inputs=[cond, x, y])
+
+    return node
