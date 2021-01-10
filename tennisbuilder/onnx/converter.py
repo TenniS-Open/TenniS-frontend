@@ -95,6 +95,33 @@ def register_layer_converter(layer, converter):
     layer2converter[layer] = converter
 
 
+layer2version2converter = {}
+
+def register_layer_version_converter(layer, version, converter):
+    if layer in layer2version2converter:
+        layer2version2converter[layer][version] = converter
+    else:
+        layer2version2converter[layer] = {version: converter}
+
+def query_version_converter(layer, version):
+    if layer not in layer2version2converter:
+        return layer2converter[layer] if layer in layer2converter else None
+
+    version2converter = layer2version2converter[layer]
+    assert isinstance(version2converter, dict)
+    found_v = 0
+    found_converter = None
+    for v in version2converter.keys():
+        if found_v < v <= version:
+            found_v = v
+            found_converter = version2converter[v]
+
+    if found_converter is None:
+        return layer2converter[layer] if layer in layer2converter else None
+
+    return found_converter
+
+
 def unique_names(onnx_model, export_model=None):
     # type: (Union[str, onnx.ModelProto], Opitonal[str]) -> onnx.ModelProto
     if isinstance(onnx_model, onnx.ModelProto):
@@ -304,7 +331,7 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         ts_node = ts.menu.data(name, value=value)
         name2node[name] = ts_node
 
-    layer_converters = {
+    builtin_layer_converters = {
         "Conv": convert_conv_layer,
         "Relu": convert_relu_layer,
         "MaxPool": convert_pooling2d_layer,
@@ -326,11 +353,12 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         "Transpose": convert_transpose_layer,
         "Softmax": convert_softmax_layer,
     }
-    layer_converters.update(layer2converter)
+
     if specific is not None:
         if not isinstance(specific, dict):
             raise Exception("specific must be dict, got {}".format(type(specific)))
-        layer_converters.update(specific)
+    else:
+        specific = {}
 
     print("==================== Converting ====================")
     # convert each node
@@ -340,10 +368,22 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         node_input = node.input
         node_output = node.output
 
+        ts_converter = None
+
+        # check specific
+        ts_converter = specific[op_type] if op_type in specific else None
+
+        # check outer register
+        if ts_converter is None:
+            ts_converter = query_version_converter(op_type, opset_version)
+
+        #  check built-in converter
+        if ts_converter is None:
+            ts_converter = builtin_layer_converters[op_type] if op_type in builtin_layer_converters else None
+
         # convert layer
-        if op_type not in layer_converters:
-            raise Exception("Not supported ONNX Layer {}".format(op_type))
-        ts_converter = layer_converters[op_type]
+        if ts_converter is None:
+            raise Exception("Not supported ONNX Layer {}-{}".format(op_type, opset_version))
 
         input_ts_nodes = []
         for name in node_input:
@@ -1925,4 +1965,109 @@ def convert_constant_of_shape_layer(node, input_nodes, output_names):
 
 
 register_layer_converter("ConstantOfShape", convert_constant_of_shape_layer)
+
+
+def convert_resize_asymmetric(node, input_nodes, output_names, attr_dict):
+    node_name = output_names[0]
+
+    assert len(input_nodes) >= 3
+    x = input_nodes[0]
+    roi = input_nodes[1]
+    scales = input_nodes[2]
+
+    try:
+        roi = ts.zoo.to_const(roi, "roi")
+        roi_count = numpy.prod(roi.shape)
+        assert roi_count == 0
+    except:
+        raise NotImplementedError("roi={}".format(roi))
+
+    mode = attr_dict["mode"]
+    mode2type = {
+        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
+        "linear": ts.zoo.Type.resize2d_type.linear,
+        "cubic": ts.zoo.Type.resize2d_type.cubic,
+    }
+    if mode not in mode2type:
+        raise NotImplementedError("mode={}".format(mode))
+    type = mode2type[mode]
+
+    if_scale_empty = False
+    try:
+        scales_data = ts.zoo.to_const(scales, "scales")
+        scales_count = numpy.prod(scales_data.shape)
+        if_scale_empty = scales_count == 0
+    except:
+        pass
+
+    if not if_scale_empty:
+        try:
+            scales = ts.zoo.to_const(scales, "scales")
+            return ts.zoo.sample2d(name=node_name, x=x, scale=scale, type=type)
+        except:
+            return ts.zoo.sample2d_v2(name=node_name, x=x, scale=scales, type=type)
+    else:
+        raise NotImplementedError("mode={}, scales={}".format(mode, scales))
+
+
+def convert_resize_half_pixel(node, input_nodes, output_names, attr_dict):
+    node_name = output_names[0]
+
+    assert len(input_nodes) == 4
+    x = input_nodes[0]
+    roi = input_nodes[1]
+    scales = input_nodes[2]
+    sizes = input_nodes[3]
+
+    try:
+        roi = ts.zoo.to_const(roi, "roi")
+        roi_count = numpy.prod(roi.shape)
+        assert roi_count == 0
+    except:
+        raise NotImplementedError("roi={}".format(roi))
+
+    mode = attr_dict["mode"]
+    mode2type = {
+        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
+        "linear": ts.zoo.Type.resize2d_type.linear,
+        "cubic": ts.zoo.Type.resize2d_type.cubic,
+    }
+    if mode not in mode2type:
+        raise NotImplementedError("mode={}".format(mode))
+    type = mode2type[mode]
+
+    return ts.zoo.resize2d(name=node_name, x=x, size=sizes, type=type)
+
+
+def convert_resize_v11_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+    opset_version = 11
+
+    attribute = node.attribute
+    attr_dict = {
+        "coordinate_transformation_mode": "half_pixel",
+        "cubic_coeff_a": -0.75,
+        "exclude_outside": 0,
+        "extrapolation_value": 0,
+        "mode": "nearest",  # linear, cubic
+        "nearest_mode": "round_prefer_floor",
+    }
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) in {3, 4}
+    assert len(output_names) == 1
+
+    coordinate_transformation_mode = attr_dict["coordinate_transformation_mode"]
+
+    if coordinate_transformation_mode == "half_pixel":
+        return convert_resize_half_pixel(node, input_nodes, output_names, attr_dict)
+    elif coordinate_transformation_mode == "asymmetric":
+        return convert_resize_asymmetric(node, input_nodes, output_names, attr_dict)
+    else:
+        raise NotImplementedError("coordinate_transformation_mode={}".format(coordinate_transformation_mode))
+
+
+register_layer_version_converter("Resize", 11, convert_resize_v11_layer)
 
