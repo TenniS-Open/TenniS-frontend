@@ -1200,13 +1200,18 @@ def RegisterOperator(cls, device, op):
                 args = [Tensor(argv[i], borrow=True) for i in range(argc)]
                 out = obj.run(args, OperatorContext(context, borrow=True))
                 if isinstance(out, numpy.ndarray):
-                    out = [out]
+                    out = Tensor(out)
                 elif isinstance(out, Tensor):
-                    out = [out]
-                if not isinstance(out, (list, tuple)):
-                    out = [out]
-                out = [Tensor(t) for t in out]
-                out = Tensor.Pack(out)
+                    out = out.clone()
+                elif isinstance(out, (list, tuple)):
+                    try:
+                        numpy_out = numpy.asarray(out)
+                        out = Tensor(numpy_out)
+                    except ...:
+                        out = [Tensor(t) for t in out]
+                        out = Tensor.Pack(out)
+                else:
+                    out = Tensor(out)
                 x = out.release()
                 x = _C.cast(x, _C.c_void_p)
                 return x.value
