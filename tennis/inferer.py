@@ -2094,6 +2094,86 @@ def infer_floor(node, inputs):
 _register_shape_inferer("floor", infer_floor)
 
 
+def infer_equal(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 2
+
+    lhs_shape = list(inputs[0].shape)
+    rhs_shape = list(inputs[1].shape)
+
+    out_dims = max(len(lhs_shape), len(rhs_shape))
+    if len(lhs_shape) < out_dims:
+        lhs_shape += [1] * (out_dims - len(lhs_shape))
+    if len(rhs_shape) < out_dims:
+        rhs_shape += [1] * (out_dims - len(rhs_shape))
+
+    out_shape = [-1] * out_dims
+    for i in range(len(out_shape)):
+        out_shape[i] = _infer_dim(lhs_shape[i], rhs_shape[i])
+
+    return NodeShape(out_shape, numpy.bool)
+
+
+_register_shape_inferer("equal", infer_equal)
+
+
+def infer_constant_of_shape(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 1
+
+    if node.has("value"):
+        val_attr = node.get("value")
+        return NodeShape(inputs[0].shape, val_attr.dtype)
+    else:
+        return NodeShape(inputs[0].shape, FLOAT32)
+
+
+_register_shape_inferer("constant_of_shape", infer_constant_of_shape)
+
+
+_register_shape_inferer("softplus", infer_copy_0)
+
+
+def infer_where(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 3
+    assert inputs[1].dtype == inputs[2].dtype
+
+    dtype = inputs[1].dtype
+
+    cond_shape = input[0].shape
+    lhs_shape = input[1].shape
+    rhs_shape = input[2].shape
+
+    out_dims = max(max(len(cond_shape), len(lhs_shape)), len(rhs_shape))
+
+    if len(cond_shape) < out_dims:
+        cond_shape += [1] * (out_dims - cond_shape)
+
+    if len(lhs_shape) < out_dims:
+        lhs_shape += [1] * (out_dims - lhs_shape)
+
+    if len(rhs_shape) < out_dims:
+        rhs_shape += [1] * (out_dims - rhs_shape)
+
+    out_shape = [-1] * out_dims
+
+    for i in range(out_dims):
+        size = cond_shape[i]
+        if not cond_shape[i] != lhs_shape[i] and cond_shape[i] == rhs_shape[i]:
+            if (cond_shape[i] != 1 and lhs_shape[i] != 1 and cond_shape[i] != lhs_shape[i]) or \
+                (cond_shape[i] != 1 and rhs_shape[i] != 1 and cond_shape[i] != rhs_shape[i]) or \
+                    (lhs_shape[i] != 1 and rhs_shape[i] != 1 and lhs_shape[i] != rhs_shape[i]):
+                return None
+            size = max(max(cond_shape[i], lhs_shape[i]), rhs_shape[i])
+        out_shape[i] = size
+
+    return NodeShape(out_shape, dtype)
+
+
+_register_shape_inferer("where", infer_where)
+
+
 def infer_value(node, value=None):
     # type: (Node, object) -> Union[None, object, numpy.ndarray]
     return _infer_value(node, value)
