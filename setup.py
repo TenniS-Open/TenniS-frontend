@@ -190,7 +190,7 @@ os.chdir(setup_root)
 configure()
 setup(
     name='tennis',
-    version='0.5.0',
+    version='1.1.0',
     author='seetatech',
     author_email='kaizhou.li@seetatech.com',
     url='https://gitlab.seetatech.com/TenniS/TenniS',
