@@ -236,7 +236,7 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    zip_safe=True,
+    zip_safe=False,
 )
 
 os.chdir(cwd)
