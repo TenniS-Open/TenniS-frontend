@@ -387,10 +387,10 @@ class Tensor(object):
 
         c_char_buffer = _C.cast(c_data, _C.POINTER(_C.c_char))
 
-        _C.resize(c_char_buffer, max(count + 1, 8))
-        c_char_buffer[count] = '\0'.encode()
-
-        c_str = _C.cast(c_char_buffer, _C.c_char_p)
+        tmp = (_C.c_char * max(count + 1, 8))()
+        _C.memmove(tmp, c_char_buffer, count)
+        tmp[count] = '\0'.encode()
+        c_str = _C.cast(tmp, _C.c_char_p)
 
         return str(c_str.value.decode())
 
