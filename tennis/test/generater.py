@@ -256,9 +256,9 @@ def list_tile_case():
         x = numpy.asarray(data, dtype=dtype)
         y = numpy.tile(x, repeats)
 
-        print x.shape
-        print repeats
-        print y.shape
+        print(x.shape)
+        print(repeats)
+        print(y.shape)
 
         bubble_inputs = [x, ]
         bubble_outputs = [y, ]
