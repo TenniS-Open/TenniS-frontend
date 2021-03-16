@@ -2191,6 +2191,32 @@ def infer_where(node, inputs):
 _register_shape_inferer("where", infer_where)
 
 
+def infer_LSTM(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) >= 3
+
+    x_shape = inputs[0].shape
+    w_shape = inputs[1].shape
+    r_shape = inputs[2].shape
+    b_shape = inputs[3].shape
+    init_h_shape = inputs[4].shape
+    init_c_shape = inputs[5].shape
+
+    assert len(x_shape) == 3
+    assert len(w_shape) == 3
+    assert len(r_shape) == 3
+    assert len(b_shape) == 2
+    # assert len(init_h_shape) == 3
+    # assert len(init_c_shape) == 3
+
+    out_shape = [x_shape[0], w_shape[0], x_shape[1], w_shape[1] // 4]
+    dtype = inputs[0].dtype
+    return NodeShape(out_shape, dtype)
+
+
+_register_shape_inferer("LSTM", infer_LSTM)
+
+
 def infer_value(node, value=None):
     # type: (Node, object) -> Union[None, object, numpy.ndarray]
     return _infer_value(node, value)

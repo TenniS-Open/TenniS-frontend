@@ -2071,3 +2071,50 @@ def convert_resize_v11_layer(node, input_nodes, output_names):
 
 register_layer_version_converter("Resize", 11, convert_resize_v11_layer)
 
+
+def convert_lstm_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {
+        # "activation_alpha": [],
+        # "activation_beta": [],
+        # "activations": [],
+        # "clip": 0,
+        "direction": "forward",
+        "hidden_size": 0,
+        # "input_forget": 0,
+    }
+
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+        print("--##    {}: {}".format(str(attr.name), attr_dict[str(attr.name)]))
+
+    assert 3 <= len(input_nodes) <= 8
+    assert 0 <= len(output_names) <= 3
+
+    x = input_nodes[0]
+    w = input_nodes[1]
+    r = input_nodes[2]
+    b = input_nodes[3]
+    # sequence_lens = input_nodes[4] if len(input_nodes) >= 4 else None
+    initial_h = input_nodes[4] if len(input_nodes) >= 4 else 0
+    initial_c = input_nodes[5] if len(input_nodes) >= 5 else 0
+
+    if initial_h == 0:
+        set_init_h = numpy.zeros(shape=(w.shape(0), x.shape(1), r.shape(2)), dtype=numpy.float32)
+        initial_h = ts.zoo.to_node(value=set_init_h, name="initial_h", device=ts.device.CPU, dtype=numpy.float32)
+
+    if initial_c == 0:
+        set_init_c = numpy.zeros(shape=(w.shape(0), x.shape(1), r.shape(2)), dtype=numpy.float32)
+        initial_c = ts.zoo.to_node(value=set_init_c, name="initial_h", device=ts.device.CPU, dtype=numpy.float32)
+
+    node_name = output_names[0]
+    node = ts.zoo.LSTM(node_name, x, w, r, b, initial_h, initial_c, attr_dict["direction"], attr_dict["hidden_size"])
+
+    return [ts.menu.field(name=output_names[i], input=node, offset=i) for i in range(len(output_names))]
+
+
+register_layer_converter("LSTM", convert_lstm_layer)
+

@@ -1140,3 +1140,18 @@ def where(name, cond, x, y):
     node = menu.op(name=name, op_name="where", inputs=[cond, x, y])
 
     return node
+
+
+def LSTM(name, x, w, r, b, initial_h, initial_c, direction, hidden_size):
+    assert isinstance(x, Node)
+    assert isinstance(w, Node)
+    assert isinstance(r, Node)
+    assert isinstance(b, Node)
+    assert isinstance(initial_h, Node)
+    assert isinstance(initial_c, Node)
+
+    node = menu.op(name=name, op_name="LSTM", inputs=[x, w, r, b, initial_h, initial_c])
+    node.set("direction", direction)
+    node.set("hidden_size", hidden_size, numpy.int32)
+    return node
+
