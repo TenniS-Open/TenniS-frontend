@@ -42,7 +42,9 @@ def load_library(libname):
     ALL_PATH += LD_LIBRARY_PATH.split(sep)
     ALL_PATH += DYLD_LIBRARY_PATH.split(sep)
     ALL_PATH += PATH.split(sep)
-    # ALL_PATH += SYS_PATH
+    ALL_PATH += SYS_PATH
+
+    ALL_PATH = [path for path in ALL_PATH if os.path.isdir(path)]
 
     ALL_PATH_ENV = sep.join(ALL_PATH)
 
