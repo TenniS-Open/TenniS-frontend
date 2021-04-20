@@ -530,9 +530,14 @@ def convert_convolution_layer(layer, params, input_nodes, output_names):
         raise NotImplementedError("group = {} with weights.shape[1] = {}".format(group, weights_blob.shape[1]))
 
     is_conv2d = group == 1
-    is_depthwise_conv2d = weights_blob.shape[1] == 1
+    # is_depthwise_conv2d = weights_blob.shape[1] == 1
 
+
+    is_depthwise_conv2d=0
+    if layer_param.HasField("group") and weights_blob.shape[1] == 1:
+        is_depthwise_conv2d=1                         
     if is_depthwise_conv2d:
+        print("*****weitghts", weights_blob.shape, group, num_output)
         assert weights_blob.shape[1] * group == num_output
 
     node = None

@@ -96,6 +96,87 @@ def register_layer_converter(layer, converter):
     layer2converter[layer] = converter
 
 
+def unique_names(onnx_model, export_model=None):
+    # type: (Union[str, onnx.ModelProto], Opitonal[str]) -> onnx.ModelProto
+    if isinstance(onnx_model, onnx.ModelProto):
+        pass
+    elif isinstance(onnx_model, str):
+        onnx_model = onnx.load(onnx_model)
+    else:
+        raise ValueError("onnx_model must be str or onnx.ModelProto")
+
+    import copy
+    onnx_model = copy.deepcopy(onnx_model)
+    cache = {}  # map original name to new Name
+    initializer_count = 0
+    node_count = 0
+
+    def get_initializer(name):
+        nonlocal initializer_count
+        if name in cache:
+            return cache[name]
+        initializer_count += 1
+        new_name = "Initializer_{}".format(initializer_count)
+        cache[name] = new_name
+        return new_name
+
+    def get_input(name):
+        nonlocal node_count
+        if name in cache:
+            return cache[name]
+        node_count += 1
+        new_name = "Input_{}".format(node_count)
+        cache[name] = new_name
+        return new_name
+
+    def get_output(name):
+        assert name in cache
+        return cache[name]
+
+    def get_node(name, op_type):
+        # type: (str, str) -> str
+        nonlocal node_count
+        if name in cache:
+            return cache[name]
+        node_count += 1
+        new_name = "{}_{}".format(op_type, node_count)
+        cache[name] = new_name
+        return new_name
+
+    onnx_graph = onnx_model.graph
+    for tensor in onnx_graph.initializer:
+        tensor.name = get_initializer(tensor.name)
+
+    for value_info in onnx_graph.input:
+        value_info.name = get_input(value_info.name)
+
+    for node in onnx_graph.node:
+        op_type = node.op_type
+        name = node.name
+        node_input = list(node.input)
+        while len(node.input):
+            node.input.pop()
+        node.input.extend([get_node(s, op_type) for s in node_input])
+        node_output = list(node.output)
+        while len(node.output):
+            node.output.pop()
+        node.output.extend([get_node(s, op_type) for s in node_output])
+
+        node.name = "{}_{}".format(op_type, "_".join([s.split("_")[-1] for s in node.output]))
+
+    for value_info in onnx_graph.output:
+        value_info.name = get_output(value_info.name)
+
+    for value_info in onnx_graph.value_info:
+        value_info.name = get_node(value_info.name, "Value")
+
+    onnx.checker.check_model(onnx_model)
+    if export_model is not None:
+        assert isinstance(export_model, str)
+        onnx.save(onnx_model, export_model)
+
+    return onnx_model
+
 def convert(input_file, output_file, check_graph=False, specific=None):
     """
     convert onnx
@@ -152,7 +233,7 @@ def convert(input_file, output_file, check_graph=False, specific=None):
     print("[INFO] imports: {} v{}".format(opset_domain, opset_version))
 
     onnx_graph = onnx_model.graph
-
+# onnx.save(onnx_model,"test.onnx")
     # op
     nodes = []
     print("==================== Node ====================")

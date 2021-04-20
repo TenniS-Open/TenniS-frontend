@@ -51,7 +51,7 @@ def convert_by_onnx(input_module, output_file, input, temp_onnx=None, opset_vers
         temp_onnx_file = tempfile.mktemp()
 
     convert_onnx(torch_model, temp_onnx_file, input=input, opset_version=opset_version)
-
+    # convert_onnx(torch_model, temp_onnx_file, input=input, opset_version=11)
     return onnx_converter.convert(temp_onnx_file, output_file, check_graph=False)
 
 
