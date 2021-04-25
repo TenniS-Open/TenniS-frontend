@@ -1207,7 +1207,7 @@ def RegisterOperator(cls, device, op):
                     try:
                         numpy_out = numpy.asarray(out)
                         out = Tensor(numpy_out)
-                    except ...:
+                    except Exception as _:
                         out = [Tensor(t) for t in out]
                         out = Tensor.Pack(out)
                 else:
