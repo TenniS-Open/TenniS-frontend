@@ -1204,12 +1204,8 @@ def RegisterOperator(cls, device, op):
                 elif isinstance(out, Tensor):
                     out = out.clone()
                 elif isinstance(out, (list, tuple)):
-                    try:
-                        numpy_out = numpy.asarray(out)
-                        out = Tensor(numpy_out)
-                    except Exception as _:
-                        out = [Tensor(t) for t in out]
-                        out = Tensor.Pack(out)
+                    out = [Tensor(t) for t in out]
+                    out = Tensor.Pack(out)
                 else:
                     out = Tensor(out)
                 x = out.release()
