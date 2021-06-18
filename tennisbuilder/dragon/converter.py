@@ -1,6 +1,4 @@
 import onnx
-from onnx import numpy_helper
-from onnx import optimizer
 
 import tennis as ts
 from ..onnx.converter import convert as convert_onnx

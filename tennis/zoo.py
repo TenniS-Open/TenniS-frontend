@@ -473,7 +473,8 @@ def pad(name, x, padding, padding_value=None):
 
     if padding_value is None:
         padding_value = Default.padding_value()
-    padding = to_node(padding, name="_const_" + name + "_padding", dtype=numpy.int32, device=device.CPU)
+    padding = padding._Node__params['value'].reshape(-1, 2)
+    padding = to_node(padding, name="_const_" + name + "_padding", dtype=numpy.float32, device=device.CPU)
 
     node = menu.op(name=name, op_name=Name.Layer.pad, inputs=[x, padding])
     node.set(Name.padding_value, padding_value)
@@ -1155,3 +1156,42 @@ def LSTM(name, x, w, r, b, initial_h, initial_c, direction, hidden_size):
     node.set("hidden_size", hidden_size, numpy.int32)
     return node
 
+
+def hard_sigmoid(name, x, alpha, beta):
+    assert isinstance(x, Node)
+
+    node = menu.op(name=name, op_name="hard_sigmoid", inputs=[x, ])
+    node.set("alpha", alpha, numpy.float32)
+    node.set("beta", beta, numpy.float32)
+
+    return node
+
+
+def identity(name, x):
+    assert isinstance(x, Node)
+
+    node = menu.op(name=name, op_name="identity", inputs=[x, ])
+
+    return node
+
+
+def matmul(name, lhs, rhs):
+    assert isinstance(lhs, Node)
+    assert isinstance(rhs, Node)
+
+    lhs = to_node(lhs, name="_const_" + name + "_lhs")
+    rhs = to_node(rhs, name="_const_" + name + "_rhs")
+    node = menu.op(name=name, op_name="matmul", inputs=[lhs, rhs])
+
+    return node
+
+
+def scatter_nd(name, data, indices, updates):
+    assert isinstance(data, Node)
+    assert isinstance(indices, Node)
+    assert isinstance(updates, Node)
+
+    indices = to_node(indices.get("value"), name="_const_indices", dtype=numpy.int32)
+    node = menu.op(name=name, op_name="scatter_nd", inputs=[data, indices, updates])
+
+    return node
