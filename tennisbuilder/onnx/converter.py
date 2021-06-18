@@ -1611,7 +1611,7 @@ def convert_matmul(node, input_nodes, output_names):
     A = input_nodes[0]
     B = input_nodes[1]
 
-    ts_node = ts.zoo.inner_prod(name=node_name, lhs=A, rhs=B)
+    ts_node = ts.zoo.matmul(name=node_name, lhs=A, rhs=B)
 
     return ts_node,
 
@@ -2118,3 +2118,82 @@ def convert_lstm_layer(node, input_nodes, output_names):
 
 register_layer_converter("LSTM", convert_lstm_layer)
 
+
+def convert_hard_sigmoid_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+        print("--##    {}: {}".format(str(attr.name), attr_dict[str(attr.name)]))
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    alpha = 0.2
+    beta = 0.5
+    if "alpha" in attr_dict:
+        alpha = attr_dict["alpha"]
+        print("--##    alpha: {}".format(alpha))
+    if "beta" in attr_dict:
+        beta = attr_dict["beta"]
+        print("--##    beta: {}".format(beta))
+
+    ts_node = ts.zoo.hard_sigmoid(node_name, x=x, alpha=alpha, beta=beta)
+
+    return ts_node,
+
+
+register_layer_converter("HardSigmoid", convert_hard_sigmoid_layer)
+
+
+def convert_identity_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    ts_node = ts.zoo.copy(node_name, x)
+
+    return ts_node,
+
+
+register_layer_converter("Identity", convert_identity_layer)
+
+
+def convert_scatter_nd_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+        print("--##    {}: {}".format(str(attr.name), attr_dict[str(attr.name)]))
+
+    assert len(input_nodes) == 3
+    assert len(output_names) == 1
+
+    data = input_nodes[0]
+    indices = input_nodes[1]
+    updates = input_nodes[2]
+
+    node_name = output_names[0]
+
+    ts_node = ts.zoo.scatter_nd(node_name, data, indices, updates)
+
+    return ts_node,
+
+
+register_layer_converter("ScatterND", convert_scatter_nd_layer)
