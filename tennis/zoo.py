@@ -473,7 +473,8 @@ def pad(name, x, padding, padding_value=None):
 
     if padding_value is None:
         padding_value = Default.padding_value()
-    padding = to_node(padding, name="_const_" + name + "_padding", dtype=numpy.int32, device=device.CPU)
+    padding = padding._Node__params['value'].reshape(-1, 2)
+    padding = to_node(padding, name="_const_" + name + "_padding", dtype=numpy.float32, device=device.CPU)
 
     node = menu.op(name=name, op_name=Name.Layer.pad, inputs=[x, padding])
     node.set(Name.padding_value, padding_value)

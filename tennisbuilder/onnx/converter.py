@@ -2197,3 +2197,99 @@ def convert_scatter_nd_layer(node, input_nodes, output_names):
 
 
 register_layer_converter("ScatterND", convert_scatter_nd_layer)
+
+
+def convert_pad_v11_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert 2 <= len(input_nodes) <= 3
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+    pads = input_nodes[1]
+
+    mode = Name.constant
+    if Name.Attr.mode in attr_dict:
+        mode = attr_dict[Name.Attr.mode]
+        print("--##    mode: {}".format(mode))
+
+    if mode != Name.constant:
+        raise NotImplementedError("mode={}".format(mode))
+
+    value = None
+    if len(input_nodes) == 3:
+        value = input_nodes[2]
+
+    ts_node = ts.zoo.pad(node_name, x=x, padding=pads, padding_value=value)
+
+    return ts_node,
+
+
+register_layer_version_converter("Pad", 11, convert_pad_v11_layer)
+
+
+def convert_prelu_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+    slope = input_nodes[1]
+
+    slope_arr = ts.zoo.to_const(value=slope, name="slope")
+    max_dim_order = numpy.argmax(slope_arr.shape)
+
+    slope_val = slope_arr.reshape(slope_arr.shape[max_dim_order], -1)
+    slope_node_val = numpy.squeeze(slope_val, axis=1)
+
+    ts_node = ts.zoo.prelu(name=node_name, x=x, dim=1, slope=slope_node_val)
+
+    return ts_node,
+
+
+register_layer_converter("PRelu", convert_prelu_layer)
+
+
+def convert_squeeze_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    axes = attr_dict[Name.Attr.axes]
+    print("--##    axes: {}".format(axes))
+
+    ts_node = ts.zoo.squeeze(name=node_name, x=x, axes=axes)
+
+    return ts_node,
+
+
+register_layer_converter("Squeeze", convert_squeeze_layer)
+
