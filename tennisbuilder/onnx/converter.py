@@ -1,6 +1,4 @@
 import onnx
-from onnx import numpy_helper
-from onnx import optimizer
 
 import tennis as ts
 from . import onnx_dtype as dtype
@@ -230,8 +228,6 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         except Exception as e:
             import sys
             sys.stderr.write("[WARNING]: Check graph failed with: {}\n".format(e))
-    # Well, onnx optimize has bug ALWAYS, disable now.
-    # onnx_model = optimizer.optimize(onnx_model, get_tensor_stack_passes())
 
     opset_domain = "ai.onnx"
     opset_version = 0
