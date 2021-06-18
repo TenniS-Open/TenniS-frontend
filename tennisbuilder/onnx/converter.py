@@ -2003,7 +2003,8 @@ def convert_resize_asymmetric(node, input_nodes, output_names, attr_dict):
     if not if_scale_empty:
         try:
             scales = ts.zoo.to_const(scales, "scales")
-            return ts.zoo.sample2d(name=node_name, x=x, scale=scale, type=type)
+            scales_val = scales[-2]
+            return ts.zoo.sample2d(name=node_name, x=x, scale=scales_val, type=type)
         except:
             return ts.zoo.sample2d_v2(name=node_name, x=x, scale=scales, type=type)
     else:
@@ -2013,11 +2014,19 @@ def convert_resize_asymmetric(node, input_nodes, output_names, attr_dict):
 def convert_resize_half_pixel(node, input_nodes, output_names, attr_dict):
     node_name = output_names[0]
 
-    assert len(input_nodes) == 4
+    assert 3 <= len(input_nodes) <= 4
     x = input_nodes[0]
     roi = input_nodes[1]
     scales = input_nodes[2]
-    sizes = input_nodes[3]
+
+    sizes = None
+    if len(input_nodes) == 4:
+        sizes = input_nodes[3]
+    else:
+        scales_val = ts.zoo.to_const(value=scales, name="scales")
+        input_shape = ts.zoo.to_const(value=x, name="x").shape
+        assert len(scales_val) == len(input_shape)
+        sizes = input_shape * scales_val
 
     try:
         roi = ts.zoo.to_const(roi, "roi")
