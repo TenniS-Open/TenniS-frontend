@@ -2126,16 +2126,19 @@ def infer_constant_of_shape(node, inputs):
     # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
     assert len(inputs) == 1
 
-    x = node.inputs[0]
+    # x = node.inputs[0]
+    shape = _infer_value(node.inputs[0])
+    if shape is None:
+        return None
 
     if node.has("value"):
         val_attr = node.get("value")
         val_attr = tensor.from_any(val_attr)
-        node.set("#value", numpy.full(shape=x.shape, fill_value=val_attr))
-        return NodeShape(inputs[0].shape, val_attr.dtype)
+        node.set("#value", numpy.full(shape=shape, fill_value=val_attr))
+        return NodeShape(shape, val_attr.dtype)
     else:
-        node.set("#value", numpy.full(shape=x.shape, fill_value=0))
-        return NodeShape(inputs[0].shape, FLOAT32)
+        node.set("#value", numpy.full(shape=shape, fill_value=0))
+        return NodeShape(shape, FLOAT32)
 
 
 _register_shape_inferer("constant_of_shape", infer_constant_of_shape)
