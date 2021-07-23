@@ -2213,13 +2213,12 @@ def convert_pad_v11_layer(node, input_nodes, output_names):
     for attr in attribute:
         attr_dict[str(attr.name)] = topy(attr)
 
-    assert 2 <= len(input_nodes) <= 3
+    assert len(input_nodes) in {2, 3}
     assert len(output_names) == 1
 
     node_name = output_names[0]
 
     x = input_nodes[0]
-    pads = input_nodes[1]
 
     mode = Name.constant
     if Name.Attr.mode in attr_dict:
@@ -2229,9 +2228,16 @@ def convert_pad_v11_layer(node, input_nodes, output_names):
     if mode != Name.constant:
         raise NotImplementedError("mode={}".format(mode))
 
-    value = None
-    if len(input_nodes) == 3:
-        value = input_nodes[2]
+    pads = input_nodes[1]
+    pads_name = pads.name
+
+    pads = ts.zoo.reshape(pads_name + "_reshape", pads, [2, -1])
+    pads = ts.zoo.transpose(pads_name + "_transpose", pads, [1, 0])
+
+    value = 0
+    if len(input_nodes) > 2:
+        value = ts.zoo.to_const(input_nodes[2], "roi")
+        print("--##    value: {}".format(value))
 
     ts_node = ts.zoo.pad(node_name, x=x, padding=pads, padding_value=value)
 
