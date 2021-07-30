@@ -2236,7 +2236,7 @@ def convert_pad_v11_layer(node, input_nodes, output_names):
 
     value = 0
     if len(input_nodes) > 2:
-        value = ts.zoo.to_const(input_nodes[2], "roi")
+        value = ts.zoo.to_const(input_nodes[2], "value")
         print("--##    value: {}".format(value))
 
     ts_node = ts.zoo.pad(node_name, x=x, padding=pads, padding_value=value)
