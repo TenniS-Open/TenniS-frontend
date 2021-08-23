@@ -1,4 +1,5 @@
 import onnx
+from onnx import numpy_helper
 
 import tennis as ts
 from . import onnx_dtype as dtype
