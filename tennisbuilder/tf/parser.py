@@ -33,6 +33,7 @@ except:
 if version_satisfy(tf_version, '1.14'):
     import_meta_graph = tf.compat.v1.train.import_meta_graph
     Session = tf.compat.v1.Session
+    tf = tf.compat.v1
 else:
     import_meta_graph = tf.train.import_meta_graph
     Session = tf.Session

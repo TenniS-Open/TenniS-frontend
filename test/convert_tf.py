@@ -9,6 +9,8 @@ from tennisbuilder.tf.converter import convert
 import tennisbuilder.tf.parser as parser
 
 import tensorflow as tf
+if parser.version_satisfy(tf.__version__, "1.14"):
+    tf = tf.compat.v1
 
 
 def test():
