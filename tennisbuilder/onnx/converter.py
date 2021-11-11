@@ -204,6 +204,7 @@ def unique_names(onnx_model, export_model=None):
 
     return onnx_model
 
+
 def convert(input_file, output_file, check_graph=False, specific=None):
     """
     convert onnx
@@ -2064,8 +2065,6 @@ def convert_resize_v11_layer(node, input_nodes, output_names):
     if coordinate_transformation_mode == "half_pixel":
         return convert_resize_half_pixel(node, input_nodes, output_names, attr_dict)
     elif coordinate_transformation_mode == "asymmetric":
-        return convert_resize_asymmetric(node, input_nodes, output_names, attr_dict)
-    elif coordinate_transformation_mode == "align_corners":
         return convert_resize_asymmetric(node, input_nodes, output_names, attr_dict)
     else:
         raise NotImplementedError("coordinate_transformation_mode={}".format(coordinate_transformation_mode))
