@@ -28,7 +28,7 @@ def get_tensor_stack_passes():
         "eliminate_unused_initializer",
         # "extract_constant_to_initializer",
         "fuse_add_bias_into_conv",
-        "fuse_bn_into_conv",
+        # "fuse_bn_into_conv",
         "fuse_consecutive_concats",
         "fuse_consecutive_log_softmax",
         "fuse_consecutive_reduce_unsqueeze",
@@ -94,6 +94,33 @@ layer2converter = {
 
 def register_layer_converter(layer, converter):
     layer2converter[layer] = converter
+
+
+layer2version2converter = {}
+
+def register_layer_version_converter(layer, version, converter):
+    if layer in layer2version2converter:
+        layer2version2converter[layer][version] = converter
+    else:
+        layer2version2converter[layer] = {version: converter}
+
+def query_version_converter(layer, version):
+    if layer not in layer2version2converter:
+        return layer2converter[layer] if layer in layer2converter else None
+
+    version2converter = layer2version2converter[layer]
+    assert isinstance(version2converter, dict)
+    found_v = 0
+    found_converter = None
+    for v in version2converter.keys():
+        if found_v < v <= version:
+            found_v = v
+            found_converter = version2converter[v]
+
+    if found_converter is None:
+        return layer2converter[layer] if layer in layer2converter else None
+
+    return found_converter
 
 
 def unique_names(onnx_model, export_model=None):
@@ -203,9 +230,8 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         except Exception as e:
             import sys
             sys.stderr.write("[WARNING]: Check graph failed with: {}\n".format(e))
-
-    ###转yolov4时  暂时去掉
-    ##onnx_model = optimizer.optimize(onnx_model, get_tensor_stack_passes())
+    # Well, onnx optimize has bug ALWAYS, disable now.
+    # onnx_model = optimizer.optimize(onnx_model, get_tensor_stack_passes())
 
     opset_domain = "ai.onnx"
     opset_version = 0
@@ -305,7 +331,7 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         ts_node = ts.menu.data(name, value=value)
         name2node[name] = ts_node
 
-    layer_converters = {
+    builtin_layer_converters = {
         "Conv": convert_conv_layer,
         "Relu": convert_relu_layer,
         "MaxPool": convert_pooling2d_layer,
@@ -328,11 +354,12 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         "Transpose": convert_transpose_layer,
         "Softmax": convert_softmax_layer,
     }
-    layer_converters.update(layer2converter)
+
     if specific is not None:
         if not isinstance(specific, dict):
             raise Exception("specific must be dict, got {}".format(type(specific)))
-        layer_converters.update(specific)
+    else:
+        specific = {}
 
     print("==================== Converting ====================")
     # convert each node
@@ -342,10 +369,22 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         node_input = node.input
         node_output = node.output
 
+        ts_converter = None
+
+        # check specific
+        ts_converter = specific[op_type] if op_type in specific else None
+
+        # check outer register
+        if ts_converter is None:
+            ts_converter = query_version_converter(op_type, opset_version)
+
+        #  check built-in converter
+        if ts_converter is None:
+            ts_converter = builtin_layer_converters[op_type] if op_type in builtin_layer_converters else None
+
         # convert layer
-        if op_type not in layer_converters:
-            raise Exception("Not supported ONNX Layer {}".format(op_type))
-        ts_converter = layer_converters[op_type]
+        if ts_converter is None:
+            raise Exception("Not supported ONNX Layer {}-{}".format(op_type, opset_version))
 
         input_ts_nodes = []
         for name in node_input:
@@ -1652,11 +1691,11 @@ def convert_slice_layer(node, input_nodes, output_names):
         # is Slice-1
         starts = attr_dict["starts"]
         ends = attr_dict["ends"]
-        starts = ts.zoo.to_node(starts, node_name + "_starts", device=ts.device.CPU, dtype=numpy.int32)
-        ends = ts.zoo.to_node(ends, node_name + "_ends", device=ts.device.CPU, dtype=numpy.int32)
+        starts = ts.zoo.to_node(starts, node_name + "_starts", device=ts.device.CPU, dtype=numpy.int64)
+        ends = ts.zoo.to_node(ends, node_name + "_ends", device=ts.device.CPU, dtype=numpy.int64)
         if "axes" in attr_dict:
             axes = attr_dict["axes"]
-            axes = ts.zoo.to_node(axes, node_name + "_axes", device=ts.device.CPU, dtype=numpy.int32)
+            axes = ts.zoo.to_node(axes, node_name + "_axes", device=ts.device.CPU, dtype=numpy.int64)
     elif len(input_nodes) >= 3 and len(input_nodes) <= 5:
         # is Slice-10 or Slice-11
         starts = input_nodes[1]
@@ -1815,8 +1854,7 @@ def convert_cast_layer(node, input_nodes, output_names):
 register_layer_converter("Cast", convert_cast_layer)
 
 
-
-def convert_softplus_layer(node, input_nodes, output_names):
+def convert_floor(node, input_nodes, output_names):
     # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
 
@@ -1832,11 +1870,72 @@ def convert_softplus_layer(node, input_nodes, output_names):
 
     x = input_nodes[0]
 
-    ts_node = softplus(name=node_name + "_softplus", x=x)
+    ts_node = ts.menu.op(node_name, "floor", [x])
 
     return ts_node,
 
+
+register_layer_converter("Floor", convert_floor)
+
+
+def convert_equal_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    lhs = input_nodes[0]
+    rhs = input_nodes[1]
+
+    ts_node = ts.zoo.equal(node_name, lhs=lhs, rhs=rhs)
+
+    return ts_node,
+
+
+register_layer_converter("Equal", convert_equal_layer)
+
+
+def convert_softplus_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    ts_node = ts.zoo.softplus(node_name, x=x)
+
+    return ts_node,
+
+
 register_layer_converter("Softplus", convert_softplus_layer)
+
+
+def convert_where_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    assert len(input_nodes) == 3
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    cond = input_nodes[0]
+    x = input_nodes[1]
+    y = input_nodes[2]
+
+    ts_node = ts.zoo.where(node_name, cond=cond, x=x, y=y)
+
+    return ts_node,
+
+
+register_layer_converter("Where", convert_where_layer)
 
 
 def convert_constant_of_shape_layer(node, input_nodes, output_names):
@@ -1854,11 +1953,13 @@ def convert_constant_of_shape_layer(node, input_nodes, output_names):
     node_name = output_names[0]
 
     x = input_nodes[0]
-    value = numpy.asarray(0, dtype=numpy.float32)
+
+    value = None
     if "value" in attr_dict:
         value = attr_dict["value"]
+        print("--##    value: {}".format(value))
 
-    ts_node = constant_of_shape_onnx(node_name,x=x,value=value)
+    ts_node = ts.zoo.constant_of_shape(node_name, x=x, value=value)
 
     return ts_node,
 
@@ -1866,57 +1967,158 @@ def convert_constant_of_shape_layer(node, input_nodes, output_names):
 register_layer_converter("ConstantOfShape", convert_constant_of_shape_layer)
 
 
-def convert_equal_layer(node, input_nodes, output_names):
+def convert_resize_asymmetric(node, input_nodes, output_names, attr_dict):
+    node_name = output_names[0]
+
+    assert len(input_nodes) >= 3
+    x = input_nodes[0]
+    roi = input_nodes[1]
+    scales = input_nodes[2]
+
+    try:
+        roi = ts.zoo.to_const(roi, "roi")
+        roi_count = numpy.prod(roi.shape)
+        assert roi_count == 0
+    except:
+        raise NotImplementedError("roi={}".format(roi))
+
+    mode = attr_dict["mode"]
+    mode2type = {
+        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
+        "linear": ts.zoo.Type.resize2d_type.linear,
+        "cubic": ts.zoo.Type.resize2d_type.cubic,
+    }
+    if mode not in mode2type:
+        raise NotImplementedError("mode={}".format(mode))
+    type = mode2type[mode]
+
+    if_scale_empty = False
+    try:
+        scales_data = ts.zoo.to_const(scales, "scales")
+        scales_count = numpy.prod(scales_data.shape)
+        if_scale_empty = scales_count == 0
+    except:
+        pass
+
+    if not if_scale_empty:
+        try:
+            scales = ts.zoo.to_const(scales, "scales")
+            return ts.zoo.sample2d(name=node_name, x=x, scale=scale, type=type)
+        except:
+            return ts.zoo.sample2d_v2(name=node_name, x=x, scale=scales, type=type)
+    else:
+        raise NotImplementedError("mode={}, scales={}".format(mode, scales))
+
+
+def convert_resize_half_pixel(node, input_nodes, output_names, attr_dict):
+    node_name = output_names[0]
+
+    assert len(input_nodes) == 4
+    x = input_nodes[0]
+    roi = input_nodes[1]
+    scales = input_nodes[2]
+    sizes = input_nodes[3]
+
+    try:
+        roi = ts.zoo.to_const(roi, "roi")
+        roi_count = numpy.prod(roi.shape)
+        assert roi_count == 0
+    except:
+        raise NotImplementedError("roi={}".format(roi))
+
+    mode = attr_dict["mode"]
+    mode2type = {
+        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
+        "linear": ts.zoo.Type.resize2d_type.linear,
+        "cubic": ts.zoo.Type.resize2d_type.cubic,
+    }
+    if mode not in mode2type:
+        raise NotImplementedError("mode={}".format(mode))
+    type = mode2type[mode]
+
+    return ts.zoo.resize2d(name=node_name, x=x, size=sizes, type=type)
+
+
+def convert_resize_v11_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+    opset_version = 11
+
+    attribute = node.attribute
+    attr_dict = {
+        "coordinate_transformation_mode": "half_pixel",
+        "cubic_coeff_a": -0.75,
+        "exclude_outside": 0,
+        "extrapolation_value": 0,
+        "mode": "nearest",  # linear, cubic
+        "nearest_mode": "round_prefer_floor",
+    }
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) in {3, 4}
+    assert len(output_names) == 1
+
+    coordinate_transformation_mode = attr_dict["coordinate_transformation_mode"]
+
+    if coordinate_transformation_mode == "half_pixel":
+        return convert_resize_half_pixel(node, input_nodes, output_names, attr_dict)
+    elif coordinate_transformation_mode == "asymmetric":
+        return convert_resize_asymmetric(node, input_nodes, output_names, attr_dict)
+    elif coordinate_transformation_mode == "align_corners":
+        return convert_resize_asymmetric(node, input_nodes, output_names, attr_dict)
+    else:
+        raise NotImplementedError("coordinate_transformation_mode={}".format(coordinate_transformation_mode))
+
+
+register_layer_version_converter("Resize", 11, convert_resize_v11_layer)
+
+
+def convert_lstm_layer(node, input_nodes, output_names):
     # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
 
     attribute = node.attribute
-    attr_dict = {}
+    attr_dict = {
+        # "activation_alpha": [],
+        # "activation_beta": [],
+        # "activations": [],
+        # "clip": 0,
+        "direction": "forward",
+        "hidden_size": 0,
+        # "input_forget": 0,
+    }
+
     for attr in attribute:
         attr_dict[str(attr.name)] = topy(attr)
+        print("--##    {}: {}".format(str(attr.name), attr_dict[str(attr.name)]))
 
-    assert len(input_nodes) == 2
-    assert len(output_names) == 1
+    assert 3 <= len(input_nodes) <= 8
+    assert 0 <= len(output_names) <= 3
 
-    node_name = output_names[0]
+    x = input_nodes[0]
+    w = input_nodes[1]
+    r = input_nodes[2]
+    b = input_nodes[3]
+    # sequence_lens = input_nodes[4] if len(input_nodes) >= 4 else None
+    initial_h = input_nodes[4] if len(input_nodes) >= 4 else 0
+    initial_c = input_nodes[5] if len(input_nodes) >= 5 else 0
 
-    x1 = input_nodes[0]
-    x2=input_nodes[1]
+    if initial_h == 0:
+        set_init_h = numpy.zeros(shape=(w.shape(0), x.shape(1), r.shape(2)), dtype=numpy.float32)
+        initial_h = ts.zoo.to_node(value=set_init_h, name="initial_h", device=ts.device.CPU, dtype=numpy.float32)
 
-
-    ts_node =equal(node_name,x1=x1,x2=x2)
-
-    return ts_node,
-
-
-register_layer_converter("Equal", convert_equal_layer)
-
-
-def convert_Where_layer(node, input_nodes, output_names):
-    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
-    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
-
-    attribute = node.attribute
-    attr_dict = {}
-    for attr in attribute:
-        attr_dict[str(attr.name)] = topy(attr)
-
-    assert len(input_nodes) == 3
-    assert len(output_names) == 1
+    if initial_c == 0:
+        set_init_c = numpy.zeros(shape=(w.shape(0), x.shape(1), r.shape(2)), dtype=numpy.float32)
+        initial_c = ts.zoo.to_node(value=set_init_c, name="initial_h", device=ts.device.CPU, dtype=numpy.float32)
 
     node_name = output_names[0]
+    node = ts.zoo.LSTM(node_name, x, w, r, b, initial_h, initial_c, attr_dict["direction"], attr_dict["hidden_size"])
 
-    condition = input_nodes[0]
-    x1 = input_nodes[1]
-    x2=input_nodes[2]
-
-
-    ts_node =where(node_name,condition=condition,x1=x1,x2=x2)
-
-    return ts_node,
+    return [ts.menu.field(name=output_names[i], input=node, offset=i) for i in range(len(output_names))]
 
 
-register_layer_converter("Where", convert_Where_layer)
+register_layer_converter("LSTM", convert_lstm_layer)
 
 
 def convert_squeeze_layer(node, input_nodes, output_names):
@@ -1943,30 +2145,6 @@ def convert_squeeze_layer(node, input_nodes, output_names):
     return ts_node,
 
 
-def convert_floor(node, input_nodes, output_names):
-    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
-    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
-
-    attribute = node.attribute
-    attr_dict = {}
-    for attr in attribute:
-        attr_dict[str(attr.name)] = topy(attr)
-
-    assert len(input_nodes) == 1
-    assert len(output_names) == 1
-
-    node_name = output_names[0]
-
-    x = input_nodes[0]
-
-    ts_node = floor(node_name, x=x)
-
-    return ts_node,
-
-
-register_layer_converter("Floor", convert_floor)
-
-
 def convert_p_relu_layer(node, input_nodes, output_names):
     # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
@@ -1982,28 +2160,15 @@ def convert_p_relu_layer(node, input_nodes, output_names):
     node_name = output_names[0]
 
     x = input_nodes[0]
-    slope=input_nodes[1]
+    slope = input_nodes[1]
 
-
-    ts_node =prelu_onnx(node_name,x=x,slope=slope)
+    ts_node = prelu_onnx(node_name,x=x,slope=slope)
 
     return ts_node,
 
 
 register_layer_converter("PRelu", convert_p_relu_layer)
 
-
-def floor(name, x):
-    assert isinstance(x, Node)
-    node = menu.op(name=name, op_name="floor", inputs=[x, ])
-    return node
-
-
-def softplus(name, x):
-    assert isinstance(x, Node)
-    node = menu.op(name=name, op_name="onnx::softplus", inputs=[x, ])
-
-    return node
 
 def prelu_onnx(name, x, slope):
     assert isinstance(x, Node)
@@ -2012,26 +2177,4 @@ def prelu_onnx(name, x, slope):
 
     return node
 
-def constant_of_shape_onnx(name, x, value):
-    assert isinstance(x, Node)
-    node = menu.op(name=name, op_name="onnx::constant_of_shape", inputs=[x, ])
-    # print( "***type:",type(value.dtype))
-    node.set("value", value)
-
-    return node
-
-
-def equal(name,x1,x2):
-    assert isinstance(x1, Node)
-    assert isinstance(x2, Node)
-    node = menu.op(name=name, op_name="onnx::equal", inputs=[x1,x2])
-    return node
-
-
-def where(name,condition,x1,x2):
-    assert isinstance(condition, Node)
-    assert isinstance(x1, Node)
-    assert isinstance(x2, Node)
-    node = menu.op(name=name, op_name="onnx::where", inputs=[condition,x1,x2])
-    return node
 

@@ -2073,6 +2073,150 @@ def infer_slice_v2(node, inputs):
 _register_shape_inferer("slice_v2", infer_slice_v2)
 
 
+def infer_floor(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 1
+
+    dtype = inputs[0].dtype
+    x_shape = list(inputs[0].shape)
+
+    x = _infer_value(node.inputs[0])
+
+    y_shape = x_shape
+
+    if x is not None:
+        y = numpy.floor(x, dtype=x.dtype)
+        node.set("#value", y)
+
+    return NodeShape(y_shape, dtype)
+
+
+_register_shape_inferer("floor", infer_floor)
+
+
+def infer_equal(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 2
+
+    lhs_shape = list(inputs[0].shape)
+    rhs_shape = list(inputs[1].shape)
+
+    out_dims = max(len(lhs_shape), len(rhs_shape))
+    if len(lhs_shape) < out_dims:
+        lhs_shape += [1] * (out_dims - len(lhs_shape))
+    if len(rhs_shape) < out_dims:
+        rhs_shape += [1] * (out_dims - len(rhs_shape))
+
+    out_shape = [-1] * out_dims
+    for i in range(len(out_shape)):
+        out_shape[i] = _infer_dim(lhs_shape[i], rhs_shape[i])
+
+    lhs_value = _infer_value(node.inputs[0])
+    rhs_value = _infer_value(node.inputs[1])
+    if lhs_value is not None and rhs_value is not None:
+        node.set("#value", numpy.equal(lhs_value, rhs_value))
+
+    return NodeShape(out_shape, ts_dtype.BOOLEAN)
+
+
+_register_shape_inferer("equal", infer_equal)
+
+
+def infer_constant_of_shape(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 1
+
+    x = node.inputs[0]
+
+    if node.has("value"):
+        val_attr = node.get("value")
+        val_attr = tensor.from_any(val_attr)
+        node.set("#value", numpy.full(shape=x.shape, fill_value=val_attr))
+        return NodeShape(inputs[0].shape, val_attr.dtype)
+    else:
+        node.set("#value", numpy.full(shape=x.shape, fill_value=0))
+        return NodeShape(inputs[0].shape, FLOAT32)
+
+
+_register_shape_inferer("constant_of_shape", infer_constant_of_shape)
+
+
+_register_shape_inferer("softplus", infer_copy_0)
+
+
+def infer_where(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 3
+    assert inputs[1].dtype == inputs[2].dtype
+
+    dtype = inputs[1].dtype
+
+    cond_shape = inputs[0].shape
+    lhs_shape = inputs[1].shape
+    rhs_shape = inputs[2].shape
+
+    out_dims = max(max(len(cond_shape), len(lhs_shape)), len(rhs_shape))
+
+    if len(cond_shape) < out_dims:
+        cond_shape += [1] * (out_dims - cond_shape)
+
+    if len(lhs_shape) < out_dims:
+        lhs_shape += [1] * (out_dims - lhs_shape)
+
+    if len(rhs_shape) < out_dims:
+        rhs_shape += [1] * (out_dims - rhs_shape)
+
+    out_shape = [-1] * out_dims
+
+    for i in range(out_dims):
+        size = cond_shape[i]
+        if not (cond_shape[i] != lhs_shape[i]) and (cond_shape[i] == rhs_shape[i]):
+            if (cond_shape[i] != 1 and lhs_shape[i] != 1 and cond_shape[i] != lhs_shape[i]) or \
+                (cond_shape[i] != 1 and rhs_shape[i] != 1 and cond_shape[i] != rhs_shape[i]) or \
+                    (lhs_shape[i] != 1 and rhs_shape[i] != 1 and lhs_shape[i] != rhs_shape[i]):
+                return None
+            size = max(max(cond_shape[i], lhs_shape[i]), rhs_shape[i])
+        out_shape[i] = size
+
+    cond = _infer_value(node.inputs[0])
+    lhs = _infer_value(node.inputs[1])
+    rhs = _infer_value(node.inputs[2])
+
+    if cond is not None and lhs is not None and rhs is not None:
+        node.set("#value", numpy.where(cond, lhs, rhs))
+
+    return NodeShape(out_shape, dtype)
+
+
+_register_shape_inferer("where", infer_where)
+
+
+def infer_LSTM(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) >= 3
+
+    x_shape = inputs[0].shape
+    w_shape = inputs[1].shape
+    r_shape = inputs[2].shape
+    b_shape = inputs[3].shape
+    init_h_shape = inputs[4].shape
+    init_c_shape = inputs[5].shape
+
+    assert len(x_shape) == 3
+    assert len(w_shape) == 3
+    assert len(r_shape) == 3
+    assert len(b_shape) == 2
+    # assert len(init_h_shape) == 3
+    # assert len(init_c_shape) == 3
+
+    out_shape = [x_shape[0], w_shape[0], x_shape[1], w_shape[1] // 4]
+    dtype = inputs[0].dtype
+    return NodeShape(out_shape, dtype)
+
+
+_register_shape_inferer("LSTM", infer_LSTM)
+
+
 def infer_value(node, value=None):
     # type: (Node, object) -> Union[None, object, numpy.ndarray]
     return _infer_value(node, value)

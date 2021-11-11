@@ -44,13 +44,15 @@ def load_library(libname):
     ALL_PATH += PATH.split(sep)
     ALL_PATH += SYS_PATH
 
+    ALL_PATH = [path for path in ALL_PATH if os.path.isdir(path)]
+
     ALL_PATH_ENV = sep.join(ALL_PATH)
 
     os.environ["PATH"] = ALL_PATH_ENV
     os.environ["LIBRARTY_PATH"] = ALL_PATH_ENV
     os.environ["LD_LIBRARY_PATH"] = ALL_PATH_ENV
     os.environ["DYLD_LIBRARY_PATH"] = ALL_PATH_ENV
-    sys.path = ALL_PATH
+    # sys.path = ALL_PATH
 
     lib = None
     msg = None
@@ -77,6 +79,6 @@ def load_library(libname):
     os.environ["LIBRARTY_PATH"] = LIBRARTY_PATH
     os.environ["LD_LIBRARY_PATH"] = LD_LIBRARY_PATH
     os.environ["DYLD_LIBRARY_PATH"] = DYLD_LIBRARY_PATH
-    sys.path = SYS_PATH
+    # sys.path = SYS_PATH
 
     return lib, msg

@@ -4,7 +4,7 @@ from onnx import optimizer
 
 import tennis as ts
 from ..onnx.converter import convert as convert_onnx
-from ..onnx.converter import register_layer_converter as register_onnx_layer_converter
+# from ..onnx.converter import register_layer_converter as register_onnx_layer_converter
 from ..onnx.converter import topy
 from ..onnx.converter import convert_gemm_layer as convert_onnx_gemm_layer
 
@@ -167,7 +167,7 @@ def convert_aten_layer(node, input_nodes, output_names):
     return ts_converter(node, input_nodes, output_names)
 
 
-register_onnx_layer_converter("ATen", convert_aten_layer)
+register_specific_layer_converter("ATen", convert_aten_layer)
 
 
 def convert_image_data_layer(node, input_nodes, output_names):
@@ -213,6 +213,50 @@ def convert_image_data_layer(node, input_nodes, output_names):
 
 
 register_aten_layer_converter("ImageData", convert_image_data_layer)
+
+def convert_channel_normalize_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+    x = ts.zoo.to_float(node_name + "_float", x)
+
+    if "mean" in attr_dict:
+        mean_values = attr_dict["mean"]
+        mean_values = numpy.reshape(numpy.asarray(mean_values, dtype=numpy.float32), (1, 1, 1, -1))
+        print("--##    mean: {}".format(mean_values))
+        x = ts.zoo.sub(node_name + "_sub_mean", x, mean_values, dtype=numpy.float32)
+
+    if "std" in attr_dict:
+        std_values = attr_dict["std"]
+        std_values = numpy.reshape(numpy.asarray(std_values, dtype=numpy.float32), (1, 1, 1, -1))
+        print("--##    mean: {}".format(std_values))
+        std_values = 1. / std_values
+        x = ts.zoo.mul(node_name + "_div_std", x, std_values, dtype=numpy.float32)
+
+    if "perm" in attr_dict:
+        perm = attr_dict["perm"]
+        perm = numpy.reshape(numpy.asarray(perm, dtype=numpy.int32), (-1))
+        print("--##    perm: {}".format(perm))
+        x = ts.zoo.transpose(node_name + "_perm", x, perm)
+
+    node = x
+    node.name = node_name
+
+    return node,
+
+
+register_aten_layer_converter("ChannelNormalize", convert_channel_normalize_layer)
 
 
 def convert_affine_layer(node, input_nodes, output_names):
@@ -336,3 +380,114 @@ def convert_roi_align_layer(node, input_nodes, output_names):
 
 
 register_aten_layer_converter("ROIAlign", convert_roi_align_layer)
+
+
+def convert_resize_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 3
+    assert len(output_names) == 1
+
+    name = output_names[0]
+
+    if "coordinate_transformation_mode"  in attr_dict:
+        assert attr_dict["coordinate_transformation_mode"] == "half_pixel", "Only support dragon's half_pixel in TenniS"
+
+    if "mode"  in attr_dict:
+        assert attr_dict["mode"] == "nearest", "Only support dragon's nearest in TenniS"
+
+    if "nearest_mode"  in attr_dict:
+        assert attr_dict["nearest_mode"] == "floor", "Only support dragon's floor nearest in TenniS"
+
+    x = input_nodes[0]
+    roi = ts.zoo.to_const(input_nodes[1], "roi")
+    scales = ts.zoo.to_const(input_nodes[2], "scales")
+
+    roi = numpy.asarray(roi, dtype=numpy.float32)
+    assert numpy.all(roi == [0, 0, 0, 0, 1, 1, 1, 1]), "Only support dragon's roi [0, 0, 0, 0, 1, 1, 1, 1] in TenniS"
+
+    scales = numpy.asarray(scales, dtype=numpy.float32)
+    assert len(scales.shape) == 1 and scales.shape[0] == 4, "Only support dragon's scales [1, 1, x, x] in TenniS"
+    assert scales[0] == 1, "Only support dragon's scales [1, 1, x, x] in TenniS"
+    assert scales[1] == 1, "Only support dragon's scales [1, 1, x, x] in TenniS"
+
+    scale = scales[2]
+
+    return ts.zoo.sample2d_v2(name=name, x=x, scale=scales)
+
+register_specific_layer_converter("Resize", convert_resize_layer)
+
+
+def convert_rpn_decoder_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) >= 3
+    assert len(output_names) >= 1
+
+    inputs = input_nodes
+
+    proposals = ts.frontend.dragon.proposal(
+        output_names=output_names,
+        inputs=inputs,
+        strides=attr_dict["strides"],
+        ratios=attr_dict["ratios"],
+        scales=attr_dict["scales"],
+        pre_nms_top_n=attr_dict["pre_nms_top_n"],
+        post_nms_top_n=attr_dict["post_nms_top_n"],
+        nms_thresh=attr_dict["nms_thresh"],
+        min_size=0,
+        min_level=attr_dict["min_level"],
+        max_level=attr_dict["max_level"],
+        canonical_scale=attr_dict["canonical_scale"],
+        canonical_level=attr_dict["canonical_level"],
+    )
+
+    return proposals
+
+
+register_aten_layer_converter("RPNDecoder", convert_rpn_decoder_layer)
+
+
+def convert_onnx_roi_align_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 3
+    assert len(output_names) == 1
+
+    batch_indices = input_nodes[2]
+    batch_indices = ts.zoo.to_const(batch_indices, "batch_indices")
+    assert numpy.all(batch_indices == [1]), "Only support dragon's batch_indices = [1] in TenniS"
+
+    inputs = input_nodes
+
+    regions = ts.frontend.dragon.roi_align(
+        output_names=output_names,
+        inputs=inputs,
+        pool_h=attr_dict["output_height"],
+        pool_w=attr_dict["output_width"],
+        spatial_scale=attr_dict["spatial_scale"],
+        sampling_ratio=attr_dict["sampling_ratio"],
+    )
+
+    return regions
+
+
+register_specific_layer_converter("RoiAlign", convert_onnx_roi_align_layer)

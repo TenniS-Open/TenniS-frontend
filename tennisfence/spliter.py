@@ -88,6 +88,18 @@ class SubGraph(object):
             raise ValueError("{} not in graph inputs".format(new_not_in_old))
         self.__inputs = inputs
 
+    def sort_outputs(self, outputs):
+        outputs = list(outputs)
+        old_outputs = set(self.__outputs)
+        new_outputs = set(outputs)
+        old_not_in_new = old_outputs - new_outputs
+        if len(old_not_in_new) > 0:
+            raise ValueError("param 1 must contain {}".format(old_not_in_new))
+        new_not_in_old = new_outputs - old_outputs
+        if len(new_not_in_old) > 0:
+            raise ValueError("{} not in graph inputs".format(new_not_in_old))
+        self.__outputs = outputs
+
 
 class MainGraph(SubGraph):
     SubGraphOp = "tmp::submodule"
@@ -768,6 +780,23 @@ class GraphSpliter(object):
             for sub_graph_input in sub_graph.inputs:
                 sub_cache[sub_graph_input] = ts.menu.param(
                     sub_graph_input.name, sub_graph_input.shape)
+            # === sort outputs more like graph output === #
+            sort_outputs = []
+            for node in sub_graph.outputs[::-1]:
+                index = len(outputs) * 2 + len(sub_graph.outputs) - len(sort_outputs)
+                for i, graph_out in enumerate(outputs):
+                    if node is graph_out:
+                        index = i
+                        break
+                    if ref.ref(node, graph_out):
+                        index = len(outputs) + i
+                        break
+                sort_outputs.append((index, node))
+            sort_outputs = sorted(sort_outputs, key=lambda t: t[0])
+            sort_outputs = [t[1] for t in sort_outputs]
+            sub_graph.sort_outputs(sort_outputs)
+            # === sort output done === #
+
             sub_outputs = self._clone_graph(sub_graph.outputs, sub_cache)
             sub_inputs = [sub_cache[i] for i in sub_graph.inputs]
             g = SubGraph(sub_outputs, sub_inputs)

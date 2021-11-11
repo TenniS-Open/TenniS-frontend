@@ -387,10 +387,10 @@ class Tensor(object):
 
         c_char_buffer = _C.cast(c_data, _C.POINTER(_C.c_char))
 
-        _C.resize(c_char_buffer, max(count + 1, 8))
-        c_char_buffer[count] = '\0'.encode()
-
-        c_str = _C.cast(c_char_buffer, _C.c_char_p)
+        tmp = (_C.c_char * max(count + 1, 8))()
+        _C.memmove(tmp, c_char_buffer, count)
+        tmp[count] = '\0'.encode()
+        c_str = _C.cast(tmp, _C.c_char_p)
 
         return str(c_str.value.decode())
 
@@ -1200,13 +1200,18 @@ def RegisterOperator(cls, device, op):
                 args = [Tensor(argv[i], borrow=True) for i in range(argc)]
                 out = obj.run(args, OperatorContext(context, borrow=True))
                 if isinstance(out, numpy.ndarray):
-                    out = [out]
+                    out = Tensor(out)
                 elif isinstance(out, Tensor):
-                    out = [out]
-                if not isinstance(out, (list, tuple)):
-                    out = [out]
-                out = [Tensor(t) for t in out]
-                out = Tensor.Pack(out)
+                    out = out.clone()
+                elif isinstance(out, (list, tuple)):
+                    try:
+                        numpy_out = numpy.asarray(out)
+                        out = Tensor(numpy_out)
+                    except ...:
+                        out = [Tensor(t) for t in out]
+                        out = Tensor.Pack(out)
+                else:
+                    out = Tensor(out)
                 x = out.release()
                 x = _C.cast(x, _C.c_void_p)
                 return x.value
