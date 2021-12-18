@@ -2220,6 +2220,31 @@ def infer_LSTM(node, inputs):
 _register_shape_inferer("LSTM", infer_LSTM)
 
 
+def infer_matmul(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 2
+
+    x = inputs[0]
+    w = inputs[1]
+
+    if len(x.shape) == 0:
+        return None
+
+    a = x.shape
+    a = (a[0], numpy.prod(a[1:]))
+
+    b = w.shape
+
+    # print("{}x{}".format(a, b))
+
+    y = (a[0], b[1])
+
+    return NodeShape(y, x.dtype)
+
+_register_shape_inferer("matmul", infer_matmul)
+_register_shape_inferer("erf", infer_copy_0)
+
+
 def infer_value(node, value=None):
     # type: (Node, object) -> Union[None, object, numpy.ndarray]
     return _infer_value(node, value)
