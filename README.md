@@ -1,5 +1,7 @@
 # Python API
 
+[![License](https://img.shields.io/badge/license-BSD-blue.svg)](LICENSE)
+
 The model garden. [See](./garden/README.md).
 
 ## Setup
