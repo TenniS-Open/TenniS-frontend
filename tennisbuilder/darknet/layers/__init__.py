@@ -10,5 +10,6 @@ from .yolo_layer import parse_yolo
 from .route_layer import parse_route
 from .upsample_layer import parse_upsample
 from .shortcut_layer import parse_shortcut
+from .output_layer import parse_output
 
 from . import forward

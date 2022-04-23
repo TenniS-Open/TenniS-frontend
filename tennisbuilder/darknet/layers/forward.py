@@ -78,14 +78,11 @@ def forward_convolutional_layer(l, net):
 
     weights = numpy.reshape(weights, newshape=(l.n // l.groups, l.c, l.size, l.size))
 
-    is_depthwise = weights.shape[0] == 1
+    is_depthwise = weights.shape[0] == 1 and l.groups == l.c
 
     if l.batch_normalize:
         # fuse bn to conv
-        if is_depthwise:
-            w_shape = (weights.shape[0], weights.shape[1], 1, 1)
-        else:
-            w_shape = (weights.shape[0], 1, 1, 1)
+        w_shape = (weights.shape[0], 1, 1, 1)
 
         mean = l.rolling_mean
         variance = l.rolling_variance
@@ -207,5 +204,12 @@ def forward_shortcut_layer(l, net):
 
     x = activate_array(x, (l.batch, l.out_c, l.out_h, l.out_w), l.activation, name=layer_name)
 
+    l.output = x
+    return x
+
+def forward_output_layer(l, net):
+    # type: (Layer, Network) -> ts.Node
+
+    x = net.input
     l.output = x
     return x

@@ -21,6 +21,7 @@ map_layer_inference = {
     ROUTE: forward_route_layer,
     UPSAMPLE: forward_upsample_layer,
     SHORTCUT: forward_shortcut_layer,
+    OUTPUT: forward_output_layer,
 }
 
 
@@ -45,18 +46,26 @@ def darknet2module(net, yolo=True, out=None):
         out = []
 
     if out is None:
-        sys.stderr.write("Module output last non-cost layer\n")
+        sys.stderr.write("Module output last non-cost layer or output layer\n")
         out = [-1]
 
     out = [net.n + x if x < 0 else x for x in out]
 
-    if yolo:
-        for i in range(net.n):
-            if net.layers[i].type == YOLO:
-                out.append(i)
+    output_layers = [i for i in range(net.n) if net.layers[i].type == OUTPUT]
+    yolo_layers = [i for i in range(net.n) if net.layers[i].type == YOLO]
+
+    if yolo and yolo_layers:
+        if yolo_layers:
+            out = yolo_layers
+        else:
+            sys.stderr.write("Module has no yolo layers.\n")
+
+    if not out and output_layers:
+        sys.stderr.write("Module using output layers {}.\n".format(output_layers))
+        out = output_layers
 
     if len(out) == 0:
-        raise Exception("Can not find any yolo layer, or given out index")
+        raise Exception("Can not find any yolo|output layer, or given out index")
 
     input = ts.menu.param(name="_input", shape=(1, net.c, net.h, net.w))
     net.input = input
@@ -80,7 +89,7 @@ def darknet2module(net, yolo=True, out=None):
     output_nodes = [net.layers[i].output for i in out]
 
     module = ts.Module()
-    if yolo:
+    if yolo and yolo_layers:
         yolo_nodes = output_nodes
         yolo_poster = ts.frontend.darknet.yolo_poster(name="yolo", x=input, inputs=yolo_nodes, thresh=0.5, nms=0.45)
         output_nodes = [yolo_poster]

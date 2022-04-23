@@ -86,6 +86,9 @@ HARDTAN = enum()
 LHTAN = enum()
 SELU = enum()
 
+# OUTPUT MARK
+OUTPUT = 9999
+
 ACTIVATION_STRING = {
     0: "LOGISTIC",
     1: "RELU",

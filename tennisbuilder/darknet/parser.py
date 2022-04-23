@@ -40,6 +40,7 @@ def string_to_layer_type(type):
     if strcmp(type, "[soft]") or strcmp(type, "[softmax]"): return SOFTMAX
     if strcmp(type, "[route]"): return ROUTE
     if strcmp(type, "[upsample]"): return UPSAMPLE
+    if strcmp(type, "[output]"): return OUTPUT
     return BLANK
 
 
@@ -50,6 +51,7 @@ map_layer_parsers = {
     ROUTE: parse_route,
     UPSAMPLE: parse_upsample,
     SHORTCUT: parse_shortcut,
+    OUTPUT: parse_output
 }
 
 

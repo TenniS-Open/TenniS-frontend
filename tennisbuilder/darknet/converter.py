@@ -13,12 +13,13 @@ import tennis as ts
 import sys
 
 
-def convert(cfg_file, weights_file, output_file):
+def convert(cfg_file, weights_file, output_file, yolo=True):
     """
     Darknet model converter
     :param cfg_file: cfg file
     :param weights_file: weights file
     :param output_file: output tsm file
+    :param yolo: if convert yolo network, if true, yolo poster will auto add at output
     :return:
     """
 
@@ -27,7 +28,7 @@ def convert(cfg_file, weights_file, output_file):
 
     darknet.set_batch_network(net, 1)
 
-    module = darknet2module(net)
+    module = darknet2module(net, yolo=yolo)
 
     with open(output_file, "wb") as fo:
         ts.Module.Save(stream=fo, module=module)
