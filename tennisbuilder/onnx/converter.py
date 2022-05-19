@@ -8,6 +8,9 @@ import tennis.frontend.onnx as onnx_node
 import numpy
 
 
+VoidNode = ts.menu.data('', numpy.asarray(0, dtype=numpy.float32))
+
+
 def to_tensor_shape(tensor_shape):
     shape = []
     for dim in tensor_shape.dim:
@@ -310,6 +313,7 @@ def convert(input_file, output_file, check_graph=False, specific=None):
 
     # set all initialized node
     name2node = {}  # str -> ts.Node
+    name2node[''] = VoidNode    # support void node to support optional input
     # get ts_inputs
     ts_inputs = []
     # no loop in graph
@@ -1969,15 +1973,8 @@ def convert_resize_asymmetric(node, input_nodes, output_names, attr_dict):
 
     assert len(input_nodes) >= 3
     x = input_nodes[0]
-    roi = input_nodes[1]
+    # roi = input_nodes[1]  # just ignore roi in non-tf_crop_and_resize mode
     scales = input_nodes[2]
-
-    try:
-        roi = ts.zoo.to_const(roi, "roi")
-        roi_count = numpy.prod(roi.shape)
-        assert roi_count == 0
-    except:
-        raise NotImplementedError("roi={}".format(roi))
 
     mode = attr_dict["mode"]
     mode2type = {
@@ -2013,7 +2010,7 @@ def convert_resize_half_pixel(node, input_nodes, output_names, attr_dict):
 
     assert 3 <= len(input_nodes) <= 4
     x = input_nodes[0]
-    roi = input_nodes[1]
+    # roi = input_nodes[1]  # just ignore roi in non-tf_crop_and_resize mode
     scales = input_nodes[2]
 
     sizes = None
@@ -2024,13 +2021,6 @@ def convert_resize_half_pixel(node, input_nodes, output_names, attr_dict):
         input_shape = ts.zoo.to_const(value=x, name="x").shape
         assert len(scales_val) == len(input_shape)
         sizes = input_shape * scales_val
-
-    try:
-        roi = ts.zoo.to_const(roi, "roi")
-        roi_count = numpy.prod(roi.shape)
-        assert roi_count == 0
-    except:
-        raise NotImplementedError("roi={}".format(roi))
 
     mode = attr_dict["mode"]
     mode2type = {
@@ -2122,7 +2112,7 @@ def convert_lstm_layer(node, input_nodes, output_names):
     return [ts.menu.field(name=output_names[i], input=node, offset=i) for i in range(len(output_names))]
 
 
-register_layer_converter("LSTM", convert_lstm_layer)
+register_layer_version_converter("LSTM", 7, convert_lstm_layer)
 
 
 def convert_hard_sigmoid_layer(node, input_nodes, output_names):

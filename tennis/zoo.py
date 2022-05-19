@@ -943,10 +943,12 @@ def sqrt(name, x):
 def tile(name, x, repeats):
     assert isinstance(x, Node)
 
-    repeats = to_const(repeats, "repeats")
-
-    node = menu.op(name=name, op_name=Name.Layer.tile, inputs=[x, ])
-    node.set(Name.repeats, repeats, numpy.int32)
+    try:
+        repeats = to_const(repeats, "repeats")
+        node = menu.op(name=name, op_name=Name.Layer.tile, inputs=[x, ])
+        node.set(Name.repeats, repeats, numpy.int32)
+    except Exception as _:
+        node = menu.op(name=name, op_name="tile_v2", inputs=[x, repeats])
 
     return node
 

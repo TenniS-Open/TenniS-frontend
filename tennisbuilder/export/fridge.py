@@ -98,6 +98,23 @@ def convert_reshape_v2_to_v1(node):
     print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, reshape.op))
     return reshape
 
+def _convert_copy(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    name = node.name
+    x = node.inputs[0]
+
+    copy = ts.graph.clone_bubble(x)
+    ts.Node.Link(copy, x.inputs)
+    copy.name = name
+
+    # print("--# -=[ Freeze layer {}: {} -> {}".format(node.name, node.op, x.op))
+    return copy
+
+
+def _remove_node(node):
+    # type: (ts.Node) -> Optional[ts.Node]
+    return node.inputs[0]
+
 
 def _check_input_shape_dict_str_int_list(shape):
     # type: (Dict[str, Tuple[int]]) -> bool
@@ -238,6 +255,9 @@ def freeze(outputs, inputs=None, input_shape=None):
             "#shape": HasSet,
             "#dtype": NE(0),
         }), convert_reshape_v2_to_v1)
+    fence.register(MetaGraph([
+        {"#op": "_copy"},
+    ]), _convert_copy)
 
     cache = {}
     outputs = fence.convert(outputs, cache)
