@@ -13,6 +13,9 @@ import tennis as ts
 import numpy
 
 
+LEAKY_RELU_SLOPE = 0.1
+
+
 def __fused_batch_norm(w, b, mean, variance, epsilon=1e-5, w_shape=None):
     """
     Notice y = (x - mean) / (sqrt(var) + eps), not same as common BN
@@ -49,7 +52,7 @@ def activate_array(x, shape, a, name=None):
     map_activation = {
         RELU: ts.zoo.relu,
         LEAKY: lambda name, x: ts.zoo.prelu(name=name, x=x, dim=1,
-                                            slope=numpy.asarray([0.1] * shape[1], dtype=numpy.float32)),
+                                            slope=numpy.asarray([LEAKY_RELU_SLOPE] * shape[1], dtype=numpy.float32)),
         LINEAR: ts.zoo.copy,
     }
 
