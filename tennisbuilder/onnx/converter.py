@@ -2068,6 +2068,65 @@ def convert_resize_v11_layer(node, input_nodes, output_names):
 register_layer_version_converter("Resize", 11, convert_resize_v11_layer)
 
 
+def convert_resize_v10_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+    scales = input_nodes[1]
+
+    mode = attr_dict["mode"]
+    mode2type = {
+        "nearest": ts.zoo.Type.resize2d_type.hard,      # nearest means hard in TS
+        "linear": ts.zoo.Type.resize2d_type.linear,
+        "bilinear": ts.zoo.Type.resize2d_type.linear,
+    }
+    if mode not in mode2type:
+        raise NotImplementedError("mode={}".format(mode))
+    type = mode2type[mode]
+
+    try:
+        scales = ts.zoo.to_const(scales, "scales")
+    except:
+        # do common sample image
+        x_shape = ts.zoo.shape(name=x.name + "_shape", x=x)
+        float_x_shape = ts.zoo.cast(name=x.name + "_float_shape", x=x_shape, dtype=ts.dtype.FLOAT32)
+        scaled_size = ts.zoo.mul(name=x.name + "_scale_size", lhs=float_x_shape, rhs=scales)
+        int_scaled_size = ts.zoo.cast(name=x.name + "_int_size", x=scaled_size, dtype=dtype.ts.dtype.INT32)
+        return ts.zoo.resize2d(name=node_name, x=x, size=int_scaled_size, type=type)
+
+    # do static scale image
+    scales = numpy.asarray(scales)
+
+    if scales.shape != (4,):
+        raise NotImplementedError("scales={}".format(scales))
+
+    if scales[0] != 1 or scales[1] != 1:
+        raise NotImplementedError("scales={}".format(scales))
+
+    if scales[2] != scales[3]:
+        raise NotImplementedError("scales={}".format(scales))
+
+    scale = scales[3]
+
+    ts_node = ts.zoo.sample2d(name=node_name, x=x, scale=scale, type=type)
+
+    return ts_node,
+
+
+register_layer_version_converter("Resize", 10, convert_resize_v10_layer)
+
+
 def convert_lstm_layer(node, input_nodes, output_names):
     # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
