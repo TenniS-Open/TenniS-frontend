@@ -2153,9 +2153,11 @@ def convert_lstm_layer(node, input_nodes, output_names):
     w = input_nodes[1]
     r = input_nodes[2]
     b = input_nodes[3]
-    # sequence_lens = input_nodes[4] if len(input_nodes) >= 4 else None
-    initial_h = input_nodes[4] if len(input_nodes) >= 4 else 0
-    initial_c = input_nodes[5] if len(input_nodes) >= 5 else 0
+    sequence_lens = input_nodes[4] if len(input_nodes) >= 4 else None
+    initial_h = input_nodes[5] if len(input_nodes) >= 5 else 0
+    initial_c = input_nodes[6] if len(input_nodes) >= 6 else 0
+
+    assert sequence_lens == VoidNode, NotImplementedError("Not support sequence_lens = {}".format(sequence_lens))
 
     if initial_h == 0:
         set_init_h = numpy.zeros(shape=(w.shape(0), x.shape(1), r.shape(2)), dtype=numpy.float32)
@@ -2163,7 +2165,7 @@ def convert_lstm_layer(node, input_nodes, output_names):
 
     if initial_c == 0:
         set_init_c = numpy.zeros(shape=(w.shape(0), x.shape(1), r.shape(2)), dtype=numpy.float32)
-        initial_c = ts.zoo.to_node(value=set_init_c, name="initial_h", device=ts.device.CPU, dtype=numpy.float32)
+        initial_c = ts.zoo.to_node(value=set_init_c, name="initial_c", device=ts.device.CPU, dtype=numpy.float32)
 
     node_name = output_names[0]
     node = ts.zoo.LSTM(node_name, x, w, r, b, initial_h, initial_c, attr_dict["direction"], attr_dict["hidden_size"])
