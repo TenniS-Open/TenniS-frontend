@@ -586,6 +586,7 @@ _register_shape_inferer("global_pooling2d", infer_global_pooling2d)
 
 
 _register_shape_inferer("sigmoid", infer_copy_0)
+_register_shape_inferer("hard_sigmoid", infer_copy_0)
 
 
 def infer_dims(node, inputs):
@@ -2230,19 +2231,40 @@ def infer_matmul(node, inputs):
     if len(x.shape) == 0:
         return None
 
-    a = x.shape
-    a = (a[0], numpy.prod(a[1:]))
-
+    # update to onnx feature
+    a = list(x.shape)
     b = w.shape
+
+    a[-1] = b[-1]
 
     # print("{}x{}".format(a, b))
 
-    y = (a[0], b[1])
+    y = a
 
     return NodeShape(y, x.dtype)
 
 _register_shape_inferer("matmul", infer_matmul)
 _register_shape_inferer("erf", infer_copy_0)
+
+
+def infer_tile_v2(node, inputs):
+    # type: (Node, List[NodeShape]) -> Union[None, NodeShape]
+    assert len(inputs) == 2
+    x = inputs[0]
+
+    a = _infer_value(node.inputs[0])
+    b = _infer_value(node.inputs[1])
+    if a is not None and b is not None:
+        y_value = numpy.tile(a, b)
+        node.set("#value", y_value)
+
+        y = y_value.shape
+        return NodeShape(y, x.dtype)
+    else:
+        return None
+
+
+_register_shape_inferer("tile_v2", infer_tile_v2)
 
 
 def infer_value(node, value=None):

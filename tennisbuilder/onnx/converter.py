@@ -142,6 +142,8 @@ def unique_names(onnx_model, export_model=None):
     node_count = 0
 
     def get_initializer(name):
+        if not name:
+            return ""
         nonlocal initializer_count
         if name in cache:
             return cache[name]
@@ -151,6 +153,8 @@ def unique_names(onnx_model, export_model=None):
         return new_name
 
     def get_input(name):
+        if not name:
+            return ""
         nonlocal node_count
         if name in cache:
             return cache[name]
@@ -160,11 +164,15 @@ def unique_names(onnx_model, export_model=None):
         return new_name
 
     def get_output(name):
+        if not name:
+            return ""
         assert name in cache
         return cache[name]
 
     def get_node(name, op_type):
         # type: (str, str) -> str
+        if not name:
+            return ""
         nonlocal node_count
         if name in cache:
             return cache[name]
