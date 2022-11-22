@@ -99,11 +99,13 @@ def register_layer_converter(layer, converter):
 
 layer2version2converter = {}
 
+
 def register_layer_version_converter(layer, version, converter):
     if layer in layer2version2converter:
         layer2version2converter[layer][version] = converter
     else:
         layer2version2converter[layer] = {version: converter}
+
 
 def query_version_converter(layer, version):
     if layer not in layer2version2converter:
@@ -352,7 +354,7 @@ def convert(input_file, output_file, check_graph=False, specific=None):
         "Sigmoid": convert_sigmoid_layer,
         "Neg": convert_neg_layer,
         "Transpose": convert_transpose_layer,
-        "Softmax": convert_softmax_layer,
+        # "Softmax": convert_softmax_layer,
     }
 
     if specific is not None:
@@ -1098,7 +1100,7 @@ def convert_transpose_layer(node, input_nodes, output_names):
     return ts_node,
 
 
-def convert_softmax_layer(node, input_nodes, output_names):
+def convert_softmax_v1_layer(node, input_nodes, output_names):
     # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
     print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
 
@@ -1127,6 +1129,38 @@ def convert_softmax_layer(node, input_nodes, output_names):
     y = ts.zoo.reshape_v2(name=node_name, x=softmax_flatten_x, shape=x_shape)
 
     return y,
+
+
+register_layer_version_converter("Softmax", 11, convert_softmax_v1_layer)
+register_layer_version_converter("Softmax", 1, convert_softmax_v1_layer)
+
+
+def convert_softmax_v13_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    axis = -1
+    if Name.Attr.axis in attr_dict:
+        axis = int(attr_dict[Name.Attr.axis])
+
+    y = ts.zoo.softmax(name=node_name, x=x, dim=axis)
+
+    return y,
+
+
+register_layer_version_converter("Softmax", 13, convert_softmax_v13_layer)
 
 
 def convert_sub_layer(node, input_nodes, output_names):
