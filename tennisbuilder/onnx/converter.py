@@ -739,6 +739,7 @@ def convert_shape_layer(node, input_nodes, output_names):
     x = input_nodes[0]
 
     ts_node = ts.zoo.shape("_int32_" + node_name, x=x)
+    ts_node.set('#dtype', ts.dtype.INT32)
     ts_node = ts.zoo.cast(node_name, ts_node, dtype=ts.dtype.INT64)
 
     return ts_node,
@@ -2397,4 +2398,68 @@ def convert_squeeze_layer(node, input_nodes, output_names):
 
 
 register_layer_converter("Squeeze", convert_squeeze_layer)
+
+
+def convert_argmax_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 1
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+
+    axis = attr_dict['axis']
+    keepdims = attr_dict['keepdims']
+    print("--##    axis: {}".format(axis))
+    print("--##    keepdims: {}".format(keepdims))
+
+    if keepdims:
+        raise NotImplementedError("keepdims={}".format(keepdims))
+
+    ts_node = ts.menu.op(node_name, "argmax", [x])
+    ts_node.set('dim', axis, numpy.int32)
+
+    return ts_node,
+
+
+register_layer_version_converter("ArgMax", 11, convert_argmax_layer)
+
+
+def convert_gather_elements_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+    indices = input_nodes[1]
+
+    axis = 0
+    if Name.Attr.axis in attr_dict:
+        axis = attr_dict[Name.Attr.axis]
+        print("--##    axis: {}".format(axis))
+
+    ts_node = ts.menu.op(node_name, "gather_elements", [x, indices])
+    ts_node.set('axis', axis, numpy.int32)
+
+    return ts_node,
+
+
+register_layer_version_converter("GatherElements", 11, convert_gather_elements_layer)
 

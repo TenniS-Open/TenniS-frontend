@@ -84,7 +84,7 @@ __dtype_str_map = {
 }
 
 convert_pairs = [
-    (numpy.bool, BOOLEAN),
+    (bool, BOOLEAN),
     (numpy.int8, INT8),
     (numpy.int16, INT16),
     (numpy.int32, INT32),

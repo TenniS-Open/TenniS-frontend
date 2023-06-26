@@ -658,7 +658,7 @@ def softmax(name, x, dim, smooth=True):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name=Name.Layer.softmax, inputs=[x, ])
     node.set(Name.dim, dim, numpy.int32)
-    node.set(Name.smooth, smooth, numpy.bool)
+    node.set(Name.smooth, smooth, bool)
     return node
 
 
@@ -897,7 +897,7 @@ def expand(name, x, dims, front=None, end=None, inverse=None):
         node.set("end", end, numpy.int32)
     if inverse is not None:
         inverse = to_const(inverse, "inverse")
-        node.set("inverse", inverse, numpy.bool)
+        node.set("inverse", inverse, bool)
 
     return node
 
@@ -918,7 +918,7 @@ def reduce_sum(name, x, reduce_dims, keep_dims=True):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name=Name.Layer.reduce_sum, inputs=[x, ])
     node.set(Name.dims, reduce_dims, numpy.int32)
-    node.set(Name.keep_dims, keep_dims, numpy.bool)
+    node.set(Name.keep_dims, keep_dims, bool)
     return node
 
 
@@ -927,7 +927,7 @@ def reduce_mean(name, x, reduce_dims, keep_dims=True):
     node = menu.op(name=name, op_name=Name.Layer.reduce_mean, inputs=[x, ])
     reduce_dims = to_const(reduce_dims, "dims")
     node.set(Name.dims, reduce_dims, numpy.int32)
-    node.set(Name.keep_dims, keep_dims, numpy.bool)
+    node.set(Name.keep_dims, keep_dims, bool)
     return node
 
 
@@ -1067,7 +1067,7 @@ def reduce_prod(name, x, reduce_dims, keep_dims=True):
     assert isinstance(x, Node)
     node = menu.op(name=name, op_name="reduce_prod", inputs=[x, ])
     node.set(Name.dims, reduce_dims, numpy.int32)
-    node.set(Name.keep_dims, keep_dims, numpy.bool)
+    node.set(Name.keep_dims, keep_dims, bool)
     return node
 
 
