@@ -2463,3 +2463,66 @@ def convert_gather_elements_layer(node, input_nodes, output_names):
 
 register_layer_version_converter("GatherElements", 11, convert_gather_elements_layer)
 
+
+def convert_split_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 2
+
+    # node_name = output_names[0]
+    node_name = node.name
+
+    x = input_nodes[0]
+    split = input_nodes[1]
+
+    axis = 0
+    if Name.Attr.axis in attr_dict:
+        axis = attr_dict[Name.Attr.axis]
+        print("--##    axis: {}".format(axis))
+
+    ts_node = ts.menu.op(node_name, "split", [x, split])
+    ts_node.set('axis', axis, numpy.int32)
+
+    output_nodes = [ts.menu.field(name, ts_node, i) for i, name in enumerate(output_names)]
+
+    return output_nodes
+
+
+register_layer_version_converter("Split", 17, convert_split_layer)
+
+
+def convert_pow_layer(node, input_nodes, output_names):
+    # type: (onnx.NodeProto, List[ts.Node], List[str]) -> List[ts.Node]
+    print("--# -=[ Converting {} layer: {} -> {} ]=-".format(node.op_type, [n.name for n in input_nodes], output_names))
+
+    attribute = node.attribute
+    attr_dict = {}
+    for attr in attribute:
+        attr_dict[str(attr.name)] = topy(attr)
+
+    assert len(input_nodes) == 2
+    assert len(output_names) == 1
+
+    node_name = output_names[0]
+
+    x = input_nodes[0]
+    y = input_nodes[1]
+
+
+    try:
+        y_value = ts.zoo.to_const(y, "y")
+        ts_node = ts.menu.op(node_name, "pow", [x])
+        ts_node.set("y", y_value, numpy.float32)
+    except:
+        ts_node = ts.menu.op(node_name, "pow_v2", [x, y])
+
+    return ts_node,
+
+
+register_layer_version_converter("Pow", 17, convert_pow_layer)
