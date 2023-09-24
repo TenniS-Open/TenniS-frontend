@@ -14,7 +14,8 @@ VoidNode = ts.menu.data('', numpy.asarray(0, dtype=numpy.float32))
 def to_tensor_shape(tensor_shape):
     shape = []
     for dim in tensor_shape.dim:
-        shape.append(dim.dim_value)
+        v = dim.dim_value if dim.HasField('dim_value') else -1
+        shape.append(v)
     return shape
 
 
