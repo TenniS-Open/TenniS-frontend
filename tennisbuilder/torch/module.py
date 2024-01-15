@@ -7,9 +7,10 @@ convert module
 
 import torch
 import torchvision
+import numpy
 
 import tennis as ts
-import numpy
+import tennis.frontend.onnx as onnx_node
 
 
 def convert_conv2d(m, x, scope=None):
@@ -173,13 +174,90 @@ def convert_linear(m, x, scope=None):
 
     return node
 
-    
+
+def convert_max_pooling(m, x, scope=None):
+    # type: (torch.nn.modules.pooling.MaxPool2d, ts.Node, str) -> ts.Node
+    if isinstance(x, (tuple, list)):
+        x = x[0]
+
+    if scope is None:
+        scope = ""
+
+    assert isinstance(x, ts.Node)
+    assert isinstance(m, torch.nn.modules.pooling.MaxPool2d)
+
+    ceil_mode = m.ceil_mode
+    dilation = m.dilation
+    kernel_size = m.kernel_size
+    padding = m.padding
+    stride = m.stride
+
+    assert dilation == 1
+
+    return onnx_node.pooling2d(name=scope, x=x,
+                               ksize=[1, 1, kernel_size, kernel_size],
+                               padding=[(0, 0), (0, 0), (padding, padding), (padding, padding)],
+                               stride=[1, 1, stride, stride],
+                               type=ts.zoo.Type.pooling_type.max,
+                               format=ts.zoo.Name.NCHW,
+                               auto_pad="NOTSET",
+                               ceil_mode=ceil_mode)
+
+
+def convert_relu(m, x, scope=None):
+    # type: (torch.nn.modules.activation.ReLU, ts.Node, str) -> ts.Node
+    if isinstance(x, (tuple, list)):
+        x = x[0]
+
+    if scope is None:
+        scope = ""
+
+    assert isinstance(x, ts.Node)
+    assert isinstance(m, torch.nn.modules.activation.ReLU)
+
+    return ts.zoo.relu(name=scope, x=x)
+
+
+def convert_batch_norm1d(m, x, scope=None):
+    # type: (torch.nn.modules.batchnorm.BatchNorm1d, ts.Node, str) -> ts.Node
+    if isinstance(x, (tuple, list)):
+        x = x[0]
+
+    if scope is None:
+        scope = ""
+
+    assert isinstance(x, ts.Node)
+    assert isinstance(m, torch.nn.modules.batchnorm.BatchNorm1d)
+
+    running_mean = numpy.asarray(m.running_mean.cpu(), dtype=numpy.float32)
+    running_var = numpy.asarray(m.running_var.cpu(), dtype=numpy.float32)
+    weight = numpy.asarray(m.weight.cpu(), dtype=numpy.float32)
+    bias = numpy.asarray(m.bias.cpu(), dtype=numpy.float32)
+    eps = float(m.eps)
+
+    assert len(running_mean.shape) == 1
+    assert len(running_var.shape) == 1
+    assert len(weight.shape) == 1
+    assert len(bias.shape) == 1
+    assert running_mean.shape[0] == running_var.shape[0]
+    assert running_mean.shape[0] == weight.shape[0]
+    assert running_mean.shape[0] == bias.shape[0]
+
+    return ts.zoo.fused_batch_norm(name=scope, x=x,
+                                   mean=running_mean, variance=running_var,
+                                   scale=weight, bias=bias,
+                                   dim=1, epsilon=eps)
+
+
 module2converter = {
     torchvision.models.resnet.ResNet: convert_resnet,
     torch.nn.modules.container.Sequential: convert_sequential,
     torch.nn.modules.conv.Conv2d: convert_conv2d,
     torch.nn.modules.batchnorm.BatchNorm2d: convert_batch_norm2d,
     torch.nn.modules.linear.Linear: convert_linear,
+    torch.nn.modules.activation.ReLU: convert_relu,
+    torch.nn.modules.pooling.MaxPool2d: convert_max_pooling,
+    torch.nn.modules.batchnorm.BatchNorm1d: convert_batch_norm1d,
 }
 
 

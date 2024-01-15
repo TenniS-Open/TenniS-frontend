@@ -8,6 +8,7 @@ from .. import Node
 from .. import zoo
 from .. import menu
 from .. import device
+from .. import dtype as ts_dtype
 
 import numpy
 
@@ -95,11 +96,39 @@ def pooling2d(name, x, ksize, stride, type=zoo.Type.pooling_type.max, format=zoo
                             type=type, format=format, padding=dynamic_padding, padding_type=padding_type)
 
 
+def strict_cast(x: Node, dtype):
+    assert isinstance(x, Node)
+
+    if not isinstance(dtype, int):
+        dtype = ts_dtype.from_numpy(dtype)
+
+    if x.try_get('#dtype', None) == dtype:
+        pass
+    if x.op == '_cast':
+        if x.get('dtype') == dtype:
+            pass
+        else:
+            origin = x.inputs[0]
+            if origin.op == '_cast' and origin.get('dtype') == dtype:
+                x = origin
+            elif origin.op == Node.Const and ts_dtype.from_numpy(origin.get("value").dtype) == dtype:
+                x = origin
+            else:
+                x = zoo.cast(name="_cast_" + origin.name + "_" + ts_dtype.dtype_str(dtype),
+                             x=origin, dtype=dtype)
+    else:
+        x = zoo.cast(name="_cast_" + x.name + "_" + ts_dtype.dtype_str(dtype),
+                     x=x, dtype=dtype)
+    return x
+
+
 def gather(name, x, indices, axis=0):
     assert isinstance(x, Node)
 
     indices = zoo.to_node(indices, name="_const_" + name + "_indices", dtype=numpy.int32, device=device.CPU)
     axis = zoo.to_const(axis, "axis")
+
+    # indices = strict_cast(indices, dtype=numpy.int32)
 
     # operator
     node = menu.op(name=name, op_name=Name.Layer.gather, inputs=[x, indices])

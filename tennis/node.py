@@ -137,7 +137,8 @@ class Node(object):
 
         # in case of link the node twice
         for i in node.inputs:
-            i.__outputs.remove(node)
+            if node in i.__outputs:
+                i.__outputs.remove(node)
         node.__inputs = []
 
         if isinstance(inputs, (list, tuple)):

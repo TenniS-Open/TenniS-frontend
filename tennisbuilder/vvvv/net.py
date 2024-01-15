@@ -190,7 +190,7 @@ class Net(object):
 
         if inputs != None:
             if len(inputs) != len(net.__inputs):
-                raise Exception("inputs count sould be {}".format(len(inputs)))
+                raise Exception("inputs count should be {}".format(len(inputs)))
             net.__inputs = inputs
 
         return net
@@ -616,6 +616,24 @@ class ShapeIndexPatchNet(Net):
 
 
 GlobalNetCreatorMap["ShapeIndexPatch"] = ShapeIndexPatchNet
+
+
+class TanhNet(Net):
+    def __init__(self, *args, **kwargs):
+        super(TanhNet, self).__init__(*args, **kwargs)
+
+    def setup(self):
+        self._init(net_count=0, input_count=1, output_count=1, param_count=0)
+
+    def bind(self):
+        dummy_input = ts.Node(op="dummy", name="_of_" + self.name)
+        self.outputs[0] = ts.zoo.tanh(name=self.name, x=dummy_input)
+
+    def link(self):
+        self.outputs[0].inputs[0] = self.inputs[0]
+
+
+GlobalNetCreatorMap["Tanh"] = TanhNet
 
 
 def convert(stream, input_num=None, inputs=None):
